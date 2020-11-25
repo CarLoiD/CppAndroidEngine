@@ -6,9 +6,19 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 public class EngineGLRenderer implements GLSurfaceView.Renderer {
+
+    private int mWidth;
+    private int mHeight;
+
+    EngineGLRenderer(final int width, final int height)
+    {
+        mWidth  = width;
+        mHeight = height;
+    }
+
     @Override
     public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
-        ApplicationCreate();
+        ApplicationCreate(mWidth, mHeight);
     }
 
     @Override
@@ -21,6 +31,6 @@ public class EngineGLRenderer implements GLSurfaceView.Renderer {
         ApplicationUpdate();
     }
 
-    private native void ApplicationCreate();
+    private native void ApplicationCreate(final int width, final int height);
     private native void ApplicationUpdate();
 }

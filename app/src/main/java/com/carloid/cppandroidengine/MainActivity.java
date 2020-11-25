@@ -1,10 +1,12 @@
 package com.carloid.cppandroidengine;
 
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-
+import android.graphics.Point;
 import android.os.Bundle;
+import android.view.Display;
+import android.view.MotionEvent;
 import android.view.View;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,6 +21,13 @@ public class MainActivity extends AppCompatActivity {
                                       | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                                       | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
 
+
+    // TouchScreen
+    private static float mCursorAxisX = 0.0f;
+    private static float mCursorAxisY = 0.0f;
+    private static float mMultiCursorAxisX = 0.0f;
+    private static float mMultiCursorAxisY = 0.0f;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -30,7 +39,12 @@ public class MainActivity extends AppCompatActivity {
                 decorView.setSystemUiVisibility(UI_FLAGS)
         );
 
-        EngineGLSurfaceView mSurfaceView = new EngineGLSurfaceView(this);
+        final Display tmpDisplay = getWindowManager().getDefaultDisplay();
+
+        Point tmpSize = new Point();
+        tmpDisplay.getSize(tmpSize);
+
+        EngineGLSurfaceView mSurfaceView = new EngineGLSurfaceView(this, tmpSize.x, tmpSize.y);
         setContentView(mSurfaceView);
     }
 
@@ -50,6 +64,30 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         ApplicationDestroy();
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN ||
+            event.getAction() == MotionEvent.ACTION_MOVE)
+        {
+            // Single touch event
+            mCursorAxisX = event.getX(0);
+            mCursorAxisY = event.getY(0);
+
+            // Multi touch event
+            if (event.getPointerCount() > 1) {
+                mMultiCursorAxisX = event.getX(1);
+                mMultiCursorAxisY = event.getY(1);
+            }
+        } else {
+            mCursorAxisX = 0.0f;
+            mCursorAxisY = 0.0f;
+            mMultiCursorAxisX = 0.0f;
+            mMultiCursorAxisY = 0.0f;
+        }
+
+        return true;
     }
 
     private native void ApplicationDestroy();
