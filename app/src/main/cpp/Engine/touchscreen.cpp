@@ -1,16 +1,5 @@
 #include "touchscreen.h"
 
-TouchScreen::TouchScreen()
-    : mJniEnv(nullptr)
-    , mWidth(0)
-    , mHeight(0)
-{}
-
-TouchScreen::TouchScreen(const uint32_t* jniEnvPtr, const uint32_t width, const uint32_t height)
-{
-    Create(jniEnvPtr, width, height);
-}
-
 void TouchScreen::Create(const uint32_t* jniEnvPtr, const uint32_t width, const uint32_t height)
 {
     mJniEnv = (JNIEnv*)jniEnvPtr;

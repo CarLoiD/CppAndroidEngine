@@ -11,6 +11,6 @@ public class EngineGLSurfaceView extends GLSurfaceView {
         setEGLContextClientVersion(2);
         getHolder().setFormat(PixelFormat.RGBA_8888);
 
-        setRenderer(new EngineGLRenderer(width, height));
+        setRenderer(new EngineGLRenderer(width, height, context.getAssets()));
     }
 }

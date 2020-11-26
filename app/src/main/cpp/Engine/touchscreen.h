@@ -14,9 +14,6 @@ typedef enum class TOUCHSCREEN_ID {
 class TouchScreen final
 {
 public:
-    TouchScreen();
-    TouchScreen(const uint32_t* jniEnvPtr, const uint32_t width, const uint32_t height);
-
     void Create(const uint32_t* jniEnvPtr, const uint32_t width, const uint32_t height);
 
     float GetTouchScreenX(const TouchScreenId& id) const;

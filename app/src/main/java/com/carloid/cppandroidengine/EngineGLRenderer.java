@@ -1,5 +1,6 @@
 package com.carloid.cppandroidengine;
 
+import android.content.res.AssetManager;
 import android.opengl.GLSurfaceView;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -10,15 +11,19 @@ public class EngineGLRenderer implements GLSurfaceView.Renderer {
     private int mWidth;
     private int mHeight;
 
-    EngineGLRenderer(final int width, final int height)
+    private AssetManager mAssetManager;
+
+    EngineGLRenderer(final int width, final int height, AssetManager assetManager)
     {
         mWidth  = width;
         mHeight = height;
+
+        mAssetManager = assetManager;
     }
 
     @Override
     public void onSurfaceCreated(GL10 gl10, EGLConfig eglConfig) {
-        ApplicationCreate(mWidth, mHeight);
+        ApplicationCreate(mWidth, mHeight, mAssetManager);
     }
 
     @Override
@@ -31,6 +36,6 @@ public class EngineGLRenderer implements GLSurfaceView.Renderer {
         ApplicationUpdate();
     }
 
-    private native void ApplicationCreate(final int width, final int height);
+    private native void ApplicationCreate(int width, int height, AssetManager assetManager);
     private native void ApplicationUpdate();
 }
