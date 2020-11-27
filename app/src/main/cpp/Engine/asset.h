@@ -22,6 +22,7 @@ public:
     void Seek(const uint32_t offset, const AssetSeekDir& direction);
     void Close();
     uint32_t GetCursorOffset() const;
+    uint32_t GetLength() const;
 
     bool IsOpen() const;
 

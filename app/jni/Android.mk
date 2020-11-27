@@ -26,6 +26,8 @@ LOCAL_SRC_FILES := $(LOCAL_PATH)/../src/main/cpp/Engine/utils.cpp \
                    $(LOCAL_PATH)/../src/main/cpp/Engine/asset_manager.cpp \
                    $(LOCAL_PATH)/../src/main/cpp/Engine/asset.cpp \
                    $(LOCAL_PATH)/../src/main/cpp/Engine/shader_compiler.cpp \
+                   $(LOCAL_PATH)/../src/main/cpp/Engine/vertex_buffer.cpp \
+                   $(LOCAL_PATH)/../src/main/cpp/Engine/math.cpp \
                    $(LOCAL_PATH)/../src/main/cpp/main.cpp
 
 # Build as shared library

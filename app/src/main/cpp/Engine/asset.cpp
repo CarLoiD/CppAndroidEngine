@@ -3,7 +3,7 @@
 Asset::Asset(AAsset* assetPtr)
 {
     mAsset = assetPtr;
-    bIsOpen = mAsset != nullptr;
+    bIsOpen = (mAsset != nullptr);
 }
 
 void Asset::Read(char* buffer, const uint32_t size)
@@ -18,12 +18,20 @@ void Asset::Seek(const uint32_t offset, const AssetSeekDir& direction)
 
 void Asset::Close()
 {
-    AAsset_close(mAsset);
+    if (bIsOpen) {
+        AAsset_close(mAsset);
+        bIsOpen = false;
+    }
 }
 
 uint32_t Asset::GetCursorOffset() const
 {
     return AAsset_seek(mAsset, 0, (int32_t)AssetSeekDir::Current);
+}
+
+uint32_t Asset::GetLength() const
+{
+    return AAsset_getLength(mAsset);
 }
 
 bool Asset::IsOpen() const

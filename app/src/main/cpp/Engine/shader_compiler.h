@@ -13,4 +13,6 @@ typedef struct {
     ShaderType Type;
 } Shader;
 
+void CompileShader(const char* code, const ShaderType& type, Shader& object);
+
 #endif // SHADER_COMPILER_H
