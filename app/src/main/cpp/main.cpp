@@ -42,6 +42,12 @@ void Application::Update(const float deltaTime)
     const float posX = getTouchScreenX(id);
     const float posY = getTouchScreenY(id);
 
+    gfxSetWorldMatrix(mtxIdentity());
+    gfxSetViewMatrix(mtxIdentity());
+    gfxSetProjectionMatrix(mtxIdentity());
+
+    gfxFlushMVPMatrix();
+
     gfxClearBackBuffer(45.0f, 45.0f, 45.0f);
     gfxDraw(0, nVertices);
 }

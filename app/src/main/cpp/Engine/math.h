@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cmath>
 
+constexpr const float PI = 3.14159265359f;
+
 typedef struct {
     float Left;
     float Right;
@@ -107,7 +109,7 @@ inline Matrix mtxRotateY(const float angle)
 inline Matrix mtxRotateZ(const float angle)
 {
     return { Cos(angle), Sin(angle), 0.0f, 0.0f,
-             -Sin(angle), Cos(angle), 0.0f, 0.0f,
+            -Sin(angle), Cos(angle), 0.0f, 0.0f,
              0.0f      , 0.0f      , 1.0f, 0.0f,
              0.0f      , 0.0f      , 0.0f, 1.0f };
 }
@@ -164,15 +166,53 @@ inline float Abs(const float& input)
     return fabsf(input);
 }
 
-inline float Cos(const float& input);
+inline float Cos(const float& input)
+{
+    return cosf(input);
+}
 
-inline float Sin(const float& input);
+inline float Sin(const float& input)
+{
+    return sinf(input);
+}
 
-inline float Tan(const float& input);
+inline float Tan(const float& input)
+{
+    return tanf(input);
+}
 
-inline float ToRadians(const float& input);
+inline float ToRadians(const float& input)
+{
+    return (PI / 180.0f) * input;
+}
 
-inline float ToDegrees(const float& input);
+inline float ToDegrees(const float& input)
+{
+    return (180.0f / PI) * input;
+}
+
+template <typename Type>
+inline void ClampMin(Type& value, const Type min)
+{
+    if (value < min) {
+        value = min;
+    }
+}
+
+template <typename Type>
+inline void ClampMax(Type& value, const Type max)
+{
+    if (value > max) {
+        value = max;
+    }
+}
+
+template <typename Type>
+inline void Clamp(Type& value, const Type min, const Type max)
+{
+    ClampMin(value, min);
+    ClampMax(value, max);
+}
 
 
 #endif // MATH_H

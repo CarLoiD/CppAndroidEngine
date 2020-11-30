@@ -38,6 +38,10 @@ uint32_t g_pixelShaderId = 0;
 
 PrimitiveType g_primitiveType = PrimitiveType::TriangleList;
 
+Matrix g_world;
+Matrix g_view;
+Matrix g_projection;
+
 namespace Application
 {
     void Create();
@@ -186,6 +190,33 @@ inline void gfxDraw(const uint32_t offset, const uint32_t count)
 inline void gfxDrawIndexed(const uint32_t count)
 {
     glDrawElements((uint32_t)g_primitiveType, count, GL_UNSIGNED_INT, nullptr);
+}
+
+inline void gfxSetWorldMatrix(const Matrix& mtx)
+{
+    g_world = mtx;
+}
+
+inline void gfxSetViewMatrix(const Matrix& mtx)
+{
+    g_view = mtx;
+}
+
+inline void gfxSetProjectionMatrix(const Matrix& mtx)
+{
+    g_projection = mtx;
+}
+
+inline void gfxFlushMVPMatrix()
+{
+    const int32_t location = glGetUniformLocation(g_shaderProgram, "ModelViewProj");
+
+    if (location == EOF) {
+        LogError("gfxError: Invalid shader uniform location :: gfxFlushMVPMatrix()");
+    } else {
+        const Matrix mvp = g_projection * g_view * g_world;
+        glUniformMatrix4fv(location, 1, GL_FALSE, &mvp.M[0][0]);
+    }
 }
 
 #endif // ENGINE_H
