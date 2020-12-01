@@ -10,7 +10,7 @@
 #include "Engine/shader_compiler.h"
 #include "Engine/vertex_buffer.h"
 #include "Engine/primitive_type.h"
-#include "Engine/math.h"
+#include "Engine/gfx_math.h"
 
 // JNI
 #include <jni.h>

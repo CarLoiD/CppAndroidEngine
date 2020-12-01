@@ -16,6 +16,75 @@ typedef struct {
     float Top;
 } ScreenRect;
 
+inline float Magnitude(const Vec2& input)
+{
+    return sqrtf((input.X * input.X) + (input.Y * input.Y));
+}
+
+inline float Magnitude(const Vec3& input)
+{
+    return sqrtf((input.X * input.X) + (input.Y * input.Y) + (input.Z * input.Z));
+}
+
+inline Vec2 Normalize(const Vec2& input)
+{
+    const float length = Magnitude(input);
+    return { input.X / length, input.Y / length };
+}
+
+inline Vec3 Normalize(const Vec3& input)
+{
+    const float length = Magnitude(input);
+    return { input.X / length, input.Y / length, input.Z / length };
+}
+
+inline Vec3 Cross(const Vec3& lhe, const Vec3& rhe)
+{
+    return { lhe.Y * rhe.Z - lhe.Z * rhe.Y,
+             lhe.Z * rhe.X - lhe.X * rhe.Z,
+             lhe.X * rhe.Y - lhe.Y * rhe.X };
+}
+
+inline float Dot(const Vec2& lhe, const Vec2& rhe)
+{
+    return lhe.X * rhe.X + lhe.Y * rhe.Y;
+}
+
+inline float Dot(const Vec3& lhe, const Vec3& rhe)
+{
+    return lhe.X * rhe.X + lhe.Y * rhe.Y + lhe.Z * rhe.Z;
+}
+
+inline float Abs(const float& input)
+{
+    return fabsf(input);
+}
+
+inline float Cos(const float& input)
+{
+    return cosf(input);
+}
+
+inline float Sin(const float& input)
+{
+    return sinf(input);
+}
+
+inline float Tan(const float& input)
+{
+    return tanf(input);
+}
+
+inline float ToRadians(const float& input)
+{
+    return (PI / 180.0f) * input;
+}
+
+inline float ToDegrees(const float& input)
+{
+    return (180.0f / PI) * input;
+}
+
 inline Matrix mtxIdentity()
 {
     return { 1.0f, 0.0f, 0.0f, 0.0f,
@@ -120,75 +189,6 @@ inline Matrix mtxTranspose(const Matrix& mtx)
              mtx.M[0][1], mtx.M[1][1], mtx.M[2][1], mtx.M[3][1],
              mtx.M[0][2], mtx.M[1][2], mtx.M[2][2], mtx.M[3][2],
              mtx.M[0][3], mtx.M[1][3], mtx.M[2][3], mtx.M[3][3] };
-}
-
-inline Vec3 Cross(const Vec3& lhe, const Vec3& rhe)
-{
-    return { lhe.Y * rhe.Z - lhe.Z * rhe.Y,
-             lhe.Z * rhe.X - lhe.X * rhe.Z,
-             lhe.X * rhe.Y - lhe.Y * rhe.X };
-}
-
-inline Vec2 Normalize(const Vec2& input)
-{
-    const float length = Magnitude(input);
-    return { input.X / length, input.Y / length };
-}
-
-inline Vec3 Normalize(const Vec3& input)
-{
-    const float length = Magnitude(input);
-    return { input.X / length, input.Y / length, input.Z / length };
-}
-
-inline float Dot(const Vec2& lhe, const Vec2& rhe)
-{
-    return lhe.X * rhe.X + lhe.Y * rhe.Y;
-}
-
-inline float Dot(const Vec3& lhe, const Vec3& rhe)
-{
-    return lhe.X * rhe.X + lhe.Y * rhe.Y + lhe.Z * rhe.Z;
-}
-
-inline float Magnitude(const Vec2& input)
-{
-    return sqrtf((input.X * input.X) + (input.Y * input.Y));
-}
-
-inline float Magnitude(const Vec3& input)
-{
-    return sqrtf((input.X * input.X) + (input.Y * input.Y) + (input.Z * input.Z));
-}
-
-inline float Abs(const float& input)
-{
-    return fabsf(input);
-}
-
-inline float Cos(const float& input)
-{
-    return cosf(input);
-}
-
-inline float Sin(const float& input)
-{
-    return sinf(input);
-}
-
-inline float Tan(const float& input)
-{
-    return tanf(input);
-}
-
-inline float ToRadians(const float& input)
-{
-    return (PI / 180.0f) * input;
-}
-
-inline float ToDegrees(const float& input)
-{
-    return (180.0f / PI) * input;
 }
 
 template <typename Type>
