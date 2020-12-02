@@ -1,5 +1,7 @@
 #include "vertex_buffer.h"
 
+#include "utils.h"
+
 inline void DefineVertexAttribPointer(const uint32_t program, const VertexElement& element,
                                       const uint32_t stride, uint16_t& offset)
 {
@@ -21,6 +23,8 @@ inline void DefineVertexAttribPointer(const uint32_t program, const VertexElemen
                 break;
         } return tmpLocation;
     }();
+
+    LogDebug("AttribLocation -> %d", attribLocation);
 
     // Element size
     const uint32_t elementSize = [&]() {

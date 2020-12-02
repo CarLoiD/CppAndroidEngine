@@ -9,6 +9,8 @@ public:
     void Create(const uint32_t width, const uint32_t height);
 
     void ClearBackBuffer(const float r, const float g, const float b, const float a);
+    void EnableDepthBufferTesting();
+    void DisableDepthBufferTesting();
 
     uint32_t GetDisplayWidth() const;
     uint32_t GetDisplayHeight() const;

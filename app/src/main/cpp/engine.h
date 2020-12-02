@@ -140,14 +140,19 @@ inline void gfxBindShader(const Shader& shader)
     switch (shader.Type)
     {
     case ShaderType::VertexShader:
+        LogDebug("BindShader (VertexShader, Id: %d)", shader.Id);
+
         glAttachShader(g_shaderProgram, shader.Id);
         g_vertexShaderId = shader.Id;
 
         break;
 
     case ShaderType::PixelShader:
+        LogDebug("BindShader (PixelShader, Id: %d)", shader.Id);
+
         if (g_vertexShaderId > 0)
         {
+            LogDebug("BindShaderProgram Id -> %d", g_shaderProgram);
             glAttachShader(g_shaderProgram, shader.Id);
 
             glLinkProgram(g_shaderProgram);
@@ -194,17 +199,17 @@ inline void gfxDrawIndexed(const uint32_t count)
 
 inline void gfxSetWorldMatrix(const Matrix& mtx)
 {
-    g_world = mtx;
+    g_world = mtxTranspose(mtx);
 }
 
 inline void gfxSetViewMatrix(const Matrix& mtx)
 {
-    g_view = mtx;
+    g_view = mtxTranspose(mtx);
 }
 
 inline void gfxSetProjectionMatrix(const Matrix& mtx)
 {
-    g_projection = mtx;
+    g_projection = mtxTranspose(mtx);
 }
 
 inline void gfxFlushMVPMatrix()
@@ -212,11 +217,21 @@ inline void gfxFlushMVPMatrix()
     const int32_t location = glGetUniformLocation(g_shaderProgram, "ModelViewProj");
 
     if (location == EOF) {
-        LogError("gfxError: Invalid shader uniform location :: gfxFlushMVPMatrix()");
+         LogError("gfxError: Invalid shader uniform location :: gfxFlushMVPMatrix()");
     } else {
         const Matrix mvp = g_projection * g_view * g_world;
         glUniformMatrix4fv(location, 1, GL_FALSE, &mvp.M[0][0]);
     }
+}
+
+inline void gfxEnableDepthBufferTesting()
+{
+    g_gfxContext.EnableDepthBufferTesting();
+}
+
+inline void gfxDisableDepthBufferTesting()
+{
+    g_gfxContext.DisableDepthBufferTesting();
 }
 
 #endif // ENGINE_H

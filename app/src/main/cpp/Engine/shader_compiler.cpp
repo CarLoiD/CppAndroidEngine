@@ -23,6 +23,8 @@ void CompileShader(const char* code, const ShaderType& type, Shader& object)
     object.Type = type;
     object.Id = glCreateShader((uint32_t)type);
 
+    LogDebug("ShaderCode: %s", code);
+
     if (object.Id)
     {
         glShaderSource(object.Id, 1, &code, nullptr);
