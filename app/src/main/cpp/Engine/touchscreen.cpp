@@ -26,7 +26,7 @@ float TouchScreen::GetTouchScreenX(const TouchScreenId& id) const
         }
     }();
 
-    return xAxisOutput / mWidth;
+    return xAxisOutput < 0.0f ? xAxisOutput : xAxisOutput / mWidth;
 }
 
 float TouchScreen::GetTouchScreenY(const TouchScreenId& id) const
@@ -47,7 +47,7 @@ float TouchScreen::GetTouchScreenY(const TouchScreenId& id) const
         }
     }();
 
-    return yAxisOutput / mHeight;
+    return yAxisOutput < 0.0f ? yAxisOutput : yAxisOutput / mHeight;
 }
 
 Vec2 TouchScreen::GetTouchScreenXY(const TouchScreenId& id) const

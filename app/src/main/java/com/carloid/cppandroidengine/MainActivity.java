@@ -23,10 +23,10 @@ public class MainActivity extends AppCompatActivity {
 
 
     // TouchScreen
-    private static float mCursorAxisX = 0.0f;
-    private static float mCursorAxisY = 0.0f;
-    private static float mMultiCursorAxisX = 0.0f;
-    private static float mMultiCursorAxisY = 0.0f;
+    private static float mCursorAxisX = -1.0f;
+    private static float mCursorAxisY = -1.0f;
+    private static float mMultiCursorAxisX = -1.0f;
+    private static float mMultiCursorAxisY = -1.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,10 +81,10 @@ public class MainActivity extends AppCompatActivity {
                 mMultiCursorAxisY = event.getY(1);
             }
         } else {
-            mCursorAxisX = 0.0f;
-            mCursorAxisY = 0.0f;
-            mMultiCursorAxisX = 0.0f;
-            mMultiCursorAxisY = 0.0f;
+            mCursorAxisX = -1.0f;
+            mCursorAxisY = -1.0f;
+            mMultiCursorAxisX = -1.0f;
+            mMultiCursorAxisY = -1.0f;
         }
 
         return true;

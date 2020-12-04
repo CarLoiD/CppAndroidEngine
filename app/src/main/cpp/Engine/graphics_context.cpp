@@ -26,6 +26,16 @@ void GraphicsContext::DisableDepthBufferTesting()
     glDisable(GL_DEPTH_TEST);
 }
 
+void GraphicsContext::Draw(const PrimitiveType& type, const uint32_t offset, const uint32_t count)
+{
+    glDrawArrays((uint32_t)type, offset, count);
+}
+
+void GraphicsContext::DrawIndexed(const PrimitiveType& type, const uint32_t count)
+{
+    glDrawElements((uint32_t)type, count, GL_UNSIGNED_SHORT, nullptr);
+}
+
 uint32_t GraphicsContext::GetDisplayWidth() const
 {
     return mWidth;

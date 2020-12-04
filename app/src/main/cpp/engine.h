@@ -3,14 +3,14 @@
 
 // Engine
 #include "Engine/utils.h"
+#include "Engine/asset_manager.h"
 #include "Engine/clock.h"
 #include "Engine/touchscreen.h"
+#include "Engine/gfx_math.h"
 #include "Engine/graphics_context.h"
-#include "Engine/asset_manager.h"
 #include "Engine/shader_compiler.h"
 #include "Engine/vertex_buffer.h"
-#include "Engine/primitive_type.h"
-#include "Engine/gfx_math.h"
+#include "Engine/index_buffer.h"
 
 // JNI
 #include <jni.h>
@@ -97,6 +97,12 @@ inline Vec2 getTouchScreenXY(const TouchScreenId& id)
     return g_displayInput.GetTouchScreenXY(id);
 }
 
+inline bool hasTouchEvent()
+{
+    const TouchScreenId id = TouchScreenId::Touch;
+    return getTouchScreenX(id) != -1.0f && getTouchScreenY(id) != -1.0f;
+}
+
 /// ASSET
 
 inline Asset openAsset(const char* filename)
@@ -105,6 +111,16 @@ inline Asset openAsset(const char* filename)
 }
 
 /// GFX
+
+inline uint32_t gfxGetDisplayWidth()
+{
+    return g_gfxContext.GetDisplayWidth();
+}
+
+inline uint32_t gfxGetDisplayHeight()
+{
+    return g_gfxContext.GetDisplayHeight();
+}
 
 inline void gfxClearBackBuffer(const float r, const float g, const float b, const float a = 255.0f)
 {
@@ -189,12 +205,12 @@ inline void gfxSetPrimitiveType(const PrimitiveType& type)
 
 inline void gfxDraw(const uint32_t offset, const uint32_t count)
 {
-    glDrawArrays((uint32_t)g_primitiveType, offset, count);
+    g_gfxContext.Draw(g_primitiveType, offset, count);
 }
 
 inline void gfxDrawIndexed(const uint32_t count)
 {
-    glDrawElements((uint32_t)g_primitiveType, count, GL_UNSIGNED_INT, nullptr);
+    g_gfxContext.DrawIndexed(g_primitiveType, count);
 }
 
 inline void gfxSetWorldMatrix(const Matrix& mtx)
@@ -217,7 +233,7 @@ inline void gfxFlushMVPMatrix()
     const int32_t location = glGetUniformLocation(g_shaderProgram, "ModelViewProj");
 
     if (location == EOF) {
-         LogError("gfxError: Invalid shader uniform location :: gfxFlushMVPMatrix()");
+         // LogError("gfxError: Invalid shader uniform location :: gfxFlushMVPMatrix()");
     } else {
         const Matrix mvp = g_projection * g_view * g_world;
         glUniformMatrix4fv(location, 1, GL_FALSE, &mvp.M[0][0]);
@@ -232,6 +248,21 @@ inline void gfxEnableDepthBufferTesting()
 inline void gfxDisableDepthBufferTesting()
 {
     g_gfxContext.DisableDepthBufferTesting();
+}
+
+inline void gfxCreateIndexBuffer(IndexBuffer& buffer)
+{
+    CreateIndexBuffer(buffer);
+}
+
+inline void gfxDestroyIndexBuffer(const IndexBuffer& buffer)
+{
+    DestroyIndexBuffer(buffer);
+}
+
+inline void gfxBindIndexBuffer(const IndexBuffer& buffer)
+{
+    BindIndexBuffer(buffer);
 }
 
 #endif // ENGINE_H

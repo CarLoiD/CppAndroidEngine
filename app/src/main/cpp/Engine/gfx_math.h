@@ -134,7 +134,7 @@ inline Matrix mtxOrthoOffCenter(const ScreenRect& rect, const float minZ, const 
 
 inline Matrix mtxPerspective(const float fov, const float aspect, const float minZ, const float maxZ)
 {
-    const float verticalScale   = 1.f / (Tan(ToRadians(fov) * 0.5f));
+    const float verticalScale   = 1.0f / (Tan(ToRadians(fov) * 0.5f));
     const float horizontalScale = verticalScale / aspect;
 
     return { horizontalScale, 0.0f         , 0.0f                          , 0.0f,
