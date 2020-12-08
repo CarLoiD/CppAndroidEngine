@@ -50,12 +50,14 @@ inline void DefineVertexAttribPointer(const uint32_t program, const VertexElemen
 }
 
 void CreateVertexBuffer(const uint32_t program, const VertexElement* layout,
-                        const uint32_t count, VertexBuffer& buffer)
+                        const uint32_t count, VertexBuffer& buffer, const bool dynamic)
 {
+    const uint32_t usage = dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW;
+
     glGenBuffers(1, &buffer.Id);
 
     glBindBuffer(GL_ARRAY_BUFFER, buffer.Id);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)buffer.Size, buffer.Data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)buffer.Size, buffer.Data, usage);
 
     uint16_t offsetPointerValue = 0;
 
@@ -75,4 +77,10 @@ void DestroyVertexBuffer(const VertexBuffer& buffer)
 void BindVertexBuffer(const VertexBuffer& buffer)
 {
     glBindBuffer(GL_ARRAY_BUFFER, buffer.Id);
+}
+
+void UpdateVertexBuffer(const void* data, const uint32_t size, const VertexBuffer& buffer)
+{
+    glBindBuffer(GL_ARRAY_BUFFER, buffer.Id);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
 }

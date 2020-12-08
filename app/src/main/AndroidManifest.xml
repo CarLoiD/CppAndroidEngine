@@ -9,8 +9,8 @@
 
     <application
         android:label="@string/app_name"
-        android:icon="@drawable/cld_sdk_logo_white"
-        android:roundIcon="@drawable/cld_sdk_logo_white"
+        android:icon="@drawable/dinoicon"
+        android:roundIcon="@drawable/dinoicon"
         android:theme="@style/Theme.CppAndroidEngine">
         <activity
             android:name=".MainActivity"

@@ -11,6 +11,8 @@
 #include "Engine/shader_compiler.h"
 #include "Engine/vertex_buffer.h"
 #include "Engine/index_buffer.h"
+#include "Engine/texture2d.h"
+#include "Engine/sprite.h"
 
 // JNI
 #include <jni.h>
@@ -183,9 +185,9 @@ inline void gfxBindShader(const Shader& shader)
     }
 }
 
-inline void gfxCreateVertexBuffer(const VertexElement* layout, const uint32_t count, VertexBuffer& buffer)
+inline void gfxCreateVertexBuffer(const VertexElement* layout, const uint32_t count, VertexBuffer& buffer, const bool dynamic = false)
 {
-    CreateVertexBuffer(g_shaderProgram, layout, count, buffer);
+    CreateVertexBuffer(g_shaderProgram, layout, count, buffer, dynamic);
 }
 
 inline void gfxDestroyVertexBuffer(const VertexBuffer& buffer)
@@ -196,6 +198,11 @@ inline void gfxDestroyVertexBuffer(const VertexBuffer& buffer)
 inline void gfxBindVertexBuffer(const VertexBuffer& buffer)
 {
     BindVertexBuffer(buffer);
+}
+
+inline void gfxUpdateVertexBuffer(const void* data, const uint32_t size, const VertexBuffer& buffer)
+{
+    UpdateVertexBuffer(data, size, buffer);
 }
 
 inline void gfxSetPrimitiveType(const PrimitiveType& type)
@@ -263,6 +270,29 @@ inline void gfxDestroyIndexBuffer(const IndexBuffer& buffer)
 inline void gfxBindIndexBuffer(const IndexBuffer& buffer)
 {
     BindIndexBuffer(buffer);
+}
+
+inline void gfxCreateTexture2D(const char* path, Texture2D& texture, const bool filtered = true, const bool repeat = false)
+{
+    Asset textureAsset = openAsset(path);
+
+    if (textureAsset.IsOpen())
+    {
+        CreateTexture2D(textureAsset, texture, filtered, repeat);
+        textureAsset.Close();
+    } else {
+        LogError("gfxError: Failed to open the texture asset file :: gfxCreateTexture2D()");
+    }
+}
+
+inline void gfxDestroyTexture2D(Texture2D& texture)
+{
+    DestroyTexture2D(texture);
+}
+
+inline void gfxBindTexture2D(const Texture2D& texture)
+{
+    BindTexture2D(texture);
 }
 
 #endif // ENGINE_H

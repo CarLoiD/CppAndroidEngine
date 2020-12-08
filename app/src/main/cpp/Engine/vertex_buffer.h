@@ -13,8 +13,9 @@ typedef struct {
     void* Data;
 } VertexBuffer;
 
-void CreateVertexBuffer(const uint32_t program, const VertexElement* layout, const uint32_t count, VertexBuffer& buffer);
+void CreateVertexBuffer(const uint32_t program, const VertexElement* layout, const uint32_t count, VertexBuffer& buffer, const bool dynamic);
 void DestroyVertexBuffer(const VertexBuffer& buffer);
 void BindVertexBuffer(const VertexBuffer& buffer);
+void UpdateVertexBuffer(const void* data, const uint32_t size, const VertexBuffer& buffer);
 
 #endif // VERTEX_BUFFER_H

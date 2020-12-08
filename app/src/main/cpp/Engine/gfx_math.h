@@ -9,6 +9,22 @@
 
 constexpr const float PI = 3.14159265359f;
 
+struct Rect2D
+{
+    float X;
+    float Y;
+    uint32_t Width;
+    uint32_t Height;
+
+    bool operator==(const Rect2D rhe) const {
+        return X == rhe.X && Y == rhe.Y && Width == rhe.Width && Height == rhe.Height;
+    }
+
+    bool operator!=(const Rect2D rhe) const {
+        return !(*this == rhe);
+    }
+};
+
 typedef struct {
     float Left;
     float Right;

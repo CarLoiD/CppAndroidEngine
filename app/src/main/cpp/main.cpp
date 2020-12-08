@@ -1,12 +1,11 @@
 #include "engine.h"
 
-#define STB_IMAGE_STATIC
-#include "stb_image/stb_image.h"
-
 const char* g_vsCode = R"(
 attribute vec4 Position;
+attribute vec4 Color;
 attribute vec2 TexCoord;
 
+varying vec4 v_Color;
 varying vec2 v_TexCoord;
 
 uniform mat4 ModelViewProj;
@@ -15,34 +14,48 @@ void main()
 {
     gl_Position = Position * ModelViewProj;
     v_TexCoord = TexCoord;
+    v_Color = Color;
 }
 )";
 
 const char* g_psCode = R"(
 precision mediump float;
 
+varying vec4 v_Color;
 varying vec2 v_TexCoord;
 
 uniform sampler2D tex2d;
 
 void main()
 {
-    gl_FragColor = texture2D(tex2d, v_TexCoord);
+    vec4 texColor = texture2D(tex2d, v_TexCoord);
+
+    if (texColor.a < 0.1) {
+        discard;
+    }
+
+    gl_FragColor = texColor * v_Color;
 }
 )";
 
 float g_angle = 0.0f;
 
+const float width = 762.0f;
+const float height = 87.0f;
+
+const float entityColor = 0.31f;
+
 typedef struct {
     float Position[3];
+    float Color[4];
     float TexCoord[2];
 } VertexInput;
 
 const VertexInput data[] = {
-    { {  0.0f,   0.0f, 0.0f }, { 0.0f, 0.0f } },
-    { {300.0f, 300.0f, 0.0f }, { 1.0f, 1.0f } },
-    { {  0.0f, 300.0f, 0.0f }, { 0.0f, 1.0f } },
-    { {300.0f,   0.0f, 0.0f }, { 1.0f, 0.0f } },
+    { {  0.0f,   0.0f, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 0.0f, 0.0f } },
+    { { width, height, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 1.0f, 1.0f } },
+    { {  0.0f, height, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 0.0f, 1.0f } },
+    { { width,   0.0f, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 1.0f, 0.0f } },
 };
 
 const uint16_t indices[] = {
@@ -53,11 +66,7 @@ const uint16_t indices[] = {
 VertexBuffer vBuffer;
 IndexBuffer iBuffer;
 
-uint32_t g_texId;
-
-uint8_t* tex2d;
-uint32_t tex2dWidth  = 0;
-uint32_t tex2dHeight = 0;
+Texture2D catInLoveTex;
 
 void Application::Create()
 {
@@ -74,6 +83,7 @@ void Application::Create()
 
     const VertexElement layout[] = {
         VertexElement::Position,
+        VertexElement::Color,
         VertexElement::TexCoord
     }; const uint32_t nLayout = sizeof(layout) / sizeof(VertexElement);
 
@@ -82,7 +92,7 @@ void Application::Create()
     vBuffer.Size   = sizeof(data);
     vBuffer.Data   = (void*)data;
 
-    gfxCreateVertexBuffer(layout, nLayout, vBuffer);
+    gfxCreateVertexBuffer(layout, nLayout, vBuffer, true);
 
     iBuffer.Stride = sizeof(uint32_t);
     iBuffer.Size   = nIndices;
@@ -96,32 +106,8 @@ void Application::Create()
     gfxSetPrimitiveType(PrimitiveType::TriangleList);
     gfxDisableDepthBufferTesting();
 
-    glActiveTexture(GL_TEXTURE0);
-
-    glGenTextures(1, &g_texId);
-    glBindTexture(GL_TEXTURE_2D, g_texId);
-
-    Asset shaderAsset = openAsset("cat_in_love.png");
-
-    if (shaderAsset.IsOpen())
-    {
-        const uint32_t length = shaderAsset.GetLength();
-        uint8_t* buffer = new uint8_t[length];
-
-        shaderAsset.Read((char*)buffer, length);
-        tex2d = stbi_load_from_memory(buffer, length, (int32_t*)&tex2dWidth, (int32_t*)&tex2dHeight, nullptr, 4);
-
-        delete[] buffer;
-
-        shaderAsset.Close();
-    }
-
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex2dWidth, tex2dHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex2d);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    gfxCreateTexture2D("textures/dino.png", catInLoveTex, false);
+    gfxBindTexture2D(catInLoveTex);
 }
 
 void Application::Update(const float deltaTime)
@@ -129,10 +115,6 @@ void Application::Update(const float deltaTime)
     if (hasTouchEvent()) {
         g_angle += deltaTime;
     }
-
-    const Vec3 eye = { 0.0f, 0.0f,-2.0f };
-    const Vec3 at  = { 0.0f, 0.0f, 0.0f };
-    const Vec3 up  = { 0.0f, 1.0f, 0.0f };
 
     const Vec2 displayRes = { (float)gfxGetDisplayWidth(), (float)gfxGetDisplayHeight() };
     const ScreenRect projRect = { 0.0f, displayRes.X, displayRes.Y, 0.0f };
@@ -143,14 +125,13 @@ void Application::Update(const float deltaTime)
 
     gfxFlushMVPMatrix();
 
-    gfxClearBackBuffer(45.0f, 45.0f, 45.0f);
+    gfxClearBackBuffer(255.0f, 255.0f, 255.0f);
     gfxDrawIndexed(nIndices);
 }
 
 void Application::Destroy()
 {
-    stbi_image_free(tex2d);
-    glDeleteTextures(1, &g_texId);
+    gfxDestroyTexture2D(catInLoveTex);
 
     gfxDestroyIndexBuffer(iBuffer);
     gfxDestroyVertexBuffer(vBuffer);
