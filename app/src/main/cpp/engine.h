@@ -29,20 +29,22 @@
 #include <sstream>
 
 // Subsystems
-Clock g_mainClock;
-TouchScreen g_displayInput;
-GraphicsContext g_gfxContext;
-AssetManager g_assetManager;
+static Clock g_mainClock;
+static TouchScreen g_displayInput;
+static GraphicsContext g_gfxContext;
+static AssetManager g_assetManager;
 
-uint32_t g_shaderProgram = 0;
-uint32_t g_vertexShaderId = 0;
-uint32_t g_pixelShaderId = 0;
+static uint32_t g_shaderProgram = 0;
+static uint32_t g_vertexShaderId = 0;
+static uint32_t g_pixelShaderId = 0;
 
-PrimitiveType g_primitiveType = PrimitiveType::TriangleList;
+static PrimitiveType g_primitiveType = PrimitiveType::TriangleList;
 
-Matrix g_world;
-Matrix g_view;
-Matrix g_projection;
+static Matrix g_world;
+static Matrix g_view;
+static Matrix g_projection;
+
+static Vec2 g_workRes;
 
 namespace Application
 {
@@ -54,6 +56,8 @@ namespace Application
 extern "C" JNIEXPORT void JNICALL
 Java_com_carloid_cppandroidengine_EngineGLRenderer_ApplicationCreate(JNIEnv* env, jobject obj, jint width, jint height, jobject assetManager)
 {
+    g_workRes = { (float)width, (float)height };
+
     g_displayInput.Create((uint32_t*)env, width, height);
     g_gfxContext.Create(width, height);
 
@@ -129,6 +133,13 @@ inline void gfxClearBackBuffer(const float r, const float g, const float b, cons
     g_gfxContext.ClearBackBuffer(r, g, b, a);
 }
 
+inline void gfxClearBackBuffer(const uint32_t color)
+{
+    float r, g, b, a;
+    DwordToColor(color, r, g, b, a);
+
+    gfxClearBackBuffer(r, g, b, a);
+}
 
 inline void gfxCompileShaderFromCode(const char* code, const ShaderType& type, Shader& object)
 {
@@ -293,6 +304,64 @@ inline void gfxDestroyTexture2D(Texture2D& texture)
 inline void gfxBindTexture2D(const Texture2D& texture)
 {
     BindTexture2D(texture);
+}
+
+inline void gfxSetWorkResolution(const Vec2& workRes)
+{
+    g_workRes = workRes;
+}
+
+inline Vec2 gfxGetWorkResolution()
+{
+    return g_workRes;
+}
+
+inline Vec2 gfxGetWorkResScale()
+{
+    const float workResScaleX = (float)gfxGetDisplayWidth() / g_workRes.X;
+    const float workResScaleY = (float)gfxGetDisplayHeight() / g_workRes.Y;
+
+    return { workResScaleX, workResScaleY };
+}
+
+inline void gfxCreateSprite(Sprite& sprite, Texture2D& texture, const Vec2& position = { 0.0f, 0.0f })
+{
+    CreateSprite(sprite, g_shaderProgram, gfxGetWorkResScale(), texture, position);
+}
+
+inline void gfxDestroySprite(Sprite& sprite)
+{
+    DestroySprite(sprite);
+}
+
+inline void gfxSpriteSetPosition(Sprite& sprite, const Vec2& position)
+{
+    SpriteSetPosition(sprite, gfxGetWorkResScale(), position);
+}
+
+inline void gfxSpriteSetSize(Sprite& sprite, const Vec2& size)
+{
+    SpriteSetSize(sprite, gfxGetWorkResScale(), size);
+}
+
+inline void gfxSpriteSetScale(Sprite& sprite, const Vec2& scale)
+{
+    SpriteSetScale(sprite, gfxGetWorkResScale(), scale);
+}
+
+inline void gfxSpriteSetColor(Sprite& sprite, const uint32_t color)
+{
+    SpriteSetColor(sprite, gfxGetWorkResScale(), color);
+}
+
+inline void gfxSpriteSetTexRect(Sprite& sprite, const Rect2D& texrect)
+{
+    SpriteSetTexRect(sprite, gfxGetWorkResScale(), texrect);
+}
+
+inline void gfxDrawSprite(const Sprite& sprite)
+{
+    SpriteDraw(sprite);
 }
 
 #endif // ENGINE_H

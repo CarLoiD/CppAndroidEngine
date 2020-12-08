@@ -1,11 +1,9 @@
 #include "graphics_context.h"
 
-#include <GLES2/gl2.h>
-
 void GraphicsContext::Create(const uint32_t width, const uint32_t height)
 {
-    mWidth  = width;
-    mHeight = height;
+    Width  = width;
+    Height = height;
 }
 
 void GraphicsContext::ClearBackBuffer(const float r, const float g, const float b, const float a)
@@ -38,10 +36,10 @@ void GraphicsContext::DrawIndexed(const PrimitiveType& type, const uint32_t coun
 
 uint32_t GraphicsContext::GetDisplayWidth() const
 {
-    return mWidth;
+    return Width;
 }
 
 uint32_t GraphicsContext::GetDisplayHeight() const
 {
-    return mHeight;
+    return Height;
 }

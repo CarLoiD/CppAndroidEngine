@@ -38,38 +38,27 @@ void main()
 }
 )";
 
-float g_angle = 0.0f;
+constexpr const float g_dinoScale = 1.5f;
+constexpr const float g_groundScale = 1.0f;
 
-const float width = 762.0f;
-const float height = 87.0f;
+uint32_t g_clearColor = 0xFFFFFFFF;
+uint32_t g_objectsColor = 0x505050FF;
 
-const float entityColor = 0.31f;
+Texture2D dinoTex;
+Texture2D groundTex;
 
-typedef struct {
-    float Position[3];
-    float Color[4];
-    float TexCoord[2];
-} VertexInput;
+Sprite dino;
+Sprite ground;
 
-const VertexInput data[] = {
-    { {  0.0f,   0.0f, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 0.0f, 0.0f } },
-    { { width, height, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 1.0f, 1.0f } },
-    { {  0.0f, height, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 0.0f, 1.0f } },
-    { { width,   0.0f, 0.0f }, { entityColor, entityColor, entityColor, 1.0f }, { 1.0f, 0.0f } },
-};
-
-const uint16_t indices[] = {
-    0, 1, 2,
-    0, 3, 1
-}; const uint32_t nIndices = sizeof(indices) / sizeof(uint16_t);
-
-VertexBuffer vBuffer;
-IndexBuffer iBuffer;
-
-Texture2D catInLoveTex;
+void LoadTextures();
+void LoadSprites();
+void DestroyTextures();
+void DestroySprites();
 
 void Application::Create()
 {
+    gfxSetWorkResolution({ 1280.0f, 720.0f });  // 720p as default work resolution
+
     Shader vertexShader;
     Shader pixelShader;
 
@@ -81,58 +70,92 @@ void Application::Create()
     gfxBindShader(vertexShader);
     gfxBindShader(pixelShader);
 
-    const VertexElement layout[] = {
-        VertexElement::Position,
-        VertexElement::Color,
-        VertexElement::TexCoord
-    }; const uint32_t nLayout = sizeof(layout) / sizeof(VertexElement);
-
-    // Vertex buffer setting
-    vBuffer.Stride = sizeof(VertexInput);
-    vBuffer.Size   = sizeof(data);
-    vBuffer.Data   = (void*)data;
-
-    gfxCreateVertexBuffer(layout, nLayout, vBuffer, true);
-
-    iBuffer.Stride = sizeof(uint32_t);
-    iBuffer.Size   = nIndices;
-    iBuffer.Data   = (void*)indices;
-
-    gfxCreateIndexBuffer(iBuffer);
-
-    gfxBindVertexBuffer(vBuffer);
-    gfxBindIndexBuffer(iBuffer);
-
     gfxSetPrimitiveType(PrimitiveType::TriangleList);
     gfxDisableDepthBufferTesting();
 
-    gfxCreateTexture2D("textures/dino.png", catInLoveTex, false);
-    gfxBindTexture2D(catInLoveTex);
+    LoadTextures();
+    LoadSprites();
+
+    gfxSpriteSetPosition(dino, { 0.0f, 200.0f });
+
+    const Vec2 displayRes = { (float)gfxGetDisplayWidth(), (float)gfxGetDisplayHeight() };
+    const ScreenRect projRect = { 0.0f, displayRes.X, displayRes.Y, 0.0f };
+
+    gfxSetWorldMatrix(mtxIdentity());
+    gfxSetViewMatrix(mtxIdentity());
+    gfxSetProjectionMatrix(mtxOrthoOffCenter(projRect, 0.0f, 1.0f));
 }
 
 void Application::Update(const float deltaTime)
 {
     if (hasTouchEvent()) {
-        g_angle += deltaTime;
+
     }
-
-    const Vec2 displayRes = { (float)gfxGetDisplayWidth(), (float)gfxGetDisplayHeight() };
-    const ScreenRect projRect = { 0.0f, displayRes.X, displayRes.Y, 0.0f };
-
-    gfxSetWorldMatrix(mtxRotateZ(g_angle));
-    gfxSetViewMatrix(mtxIdentity());
-    gfxSetProjectionMatrix(mtxOrthoOffCenter(projRect, 0.0f, 1.0f));
 
     gfxFlushMVPMatrix();
 
-    gfxClearBackBuffer(255.0f, 255.0f, 255.0f);
-    gfxDrawIndexed(nIndices);
+    gfxClearBackBuffer(g_clearColor);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(SpriteVertex), (void*)dino.BufferData->Position);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)dino.BufferData->Color);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)dino.BufferData->TexCoord);
+
+    gfxDrawSprite(dino);
+
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(SpriteVertex), (void*)ground.BufferData->Position);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)ground.BufferData->Color);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)ground.BufferData->TexCoord);
+
+    gfxDrawSprite(ground);
 }
 
 void Application::Destroy()
 {
-    gfxDestroyTexture2D(catInLoveTex);
+    DestroySprites();
+    DestroyTextures();
+}
 
-    gfxDestroyIndexBuffer(iBuffer);
-    gfxDestroyVertexBuffer(vBuffer);
+void LoadTextures()
+{
+    gfxCreateTexture2D("textures/dino.png", dinoTex, false);
+    gfxCreateTexture2D("textures/ground.png", groundTex, false, true);
+}
+
+void LoadSprites()
+{
+    // Dino
+    gfxCreateSprite(dino, dinoTex);
+    gfxSpriteSetColor(dino, g_objectsColor);
+    gfxSpriteSetScale(dino, { g_dinoScale, g_dinoScale });
+//    gfxSpriteSetTexRect(dino, { 0.0f, 0.0f, 84, 87 });
+
+//    // Ground
+    gfxCreateSprite(ground, groundTex);
+    gfxSpriteSetColor(ground, g_objectsColor);
+//    gfxSpriteSetPosition(ground, { 0.0f, (float)gfxGetDisplayHeight() - ground.Size.Y });
+}
+
+void DestroyTextures()
+{
+    gfxDestroyTexture2D(dinoTex);
+    gfxDestroyTexture2D(groundTex);
+}
+
+void DestroySprites()
+{
+    gfxDestroySprite(dino);
+    gfxDestroySprite(ground);
 }

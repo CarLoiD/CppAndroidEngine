@@ -2,6 +2,9 @@
 #define GRAPHICS_CONTEXT_H
 
 #include "primitive_type.h"
+#include "vector.h"
+
+#include <GLES2/gl2.h>
 #include <cstdint>
 
 class GraphicsContext final
@@ -19,8 +22,8 @@ public:
     uint32_t GetDisplayHeight() const;
 
 private:
-    uint32_t mWidth;
-    uint32_t mHeight;
+    uint32_t Width;
+    uint32_t Height;
 };
 
 #endif // GRAPHICS_CONTEXT_H
