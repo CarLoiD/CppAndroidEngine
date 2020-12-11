@@ -153,9 +153,11 @@ inline void gfxCompileShaderFromAsset(const char* filename, const ShaderType& ty
     if (shaderAsset.IsOpen())
     {
         const uint32_t length = shaderAsset.GetLength();
-        char* buffer = new char[length];
+        char* buffer = new char[length + 1];
 
         shaderAsset.Read(buffer, length);
+        buffer[length] = '\0';
+
         CompileShader(buffer, type, object);
 
         delete[] buffer;
@@ -336,32 +338,32 @@ inline void gfxDestroySprite(Sprite& sprite)
 
 inline void gfxSpriteSetPosition(Sprite& sprite, const Vec2& position)
 {
-    SpriteSetPosition(sprite, gfxGetWorkResScale(), position);
+    SpriteSetPosition(sprite, position);
 }
 
 inline void gfxSpriteSetSize(Sprite& sprite, const Vec2& size)
 {
-    SpriteSetSize(sprite, gfxGetWorkResScale(), size);
+    SpriteSetSize(sprite, size);
 }
 
 inline void gfxSpriteSetScale(Sprite& sprite, const Vec2& scale)
 {
-    SpriteSetScale(sprite, gfxGetWorkResScale(), scale);
+    SpriteSetScale(sprite, scale);
 }
 
 inline void gfxSpriteSetColor(Sprite& sprite, const uint32_t color)
 {
-    SpriteSetColor(sprite, gfxGetWorkResScale(), color);
+    SpriteSetColor(sprite, color);
 }
 
 inline void gfxSpriteSetTexRect(Sprite& sprite, const Rect2D& texrect)
 {
-    SpriteSetTexRect(sprite, gfxGetWorkResScale(), texrect);
+    SpriteSetTexRect(sprite, texrect);
 }
 
-inline void gfxDrawSprite(const Sprite& sprite)
+inline void gfxDrawSprite(Sprite& sprite)
 {
-    SpriteDraw(sprite);
+    SpriteDraw(sprite, gfxGetWorkResScale());
 }
 
 #endif // ENGINE_H

@@ -83,68 +83,72 @@ void DestroySprite(Sprite& sprite)
     sprite.Color    = 0x00000000;
 }
 
-void SpriteSetPosition(Sprite& sprite, const Vec2& workResScale, const Vec2& position)
+void SpriteSetPosition(Sprite& sprite, const Vec2& position)
 {
     if (position != sprite.Position)
     {
         sprite.Position = position;
-
-        SetupVertexData(sprite, workResScale);
-        UpdateVertexBufferData(sprite);
+        sprite.NeedBufferUpdate = true;
     }
 }
 
-void SpriteSetSize(Sprite& sprite, const Vec2& workResScale, const Vec2& size)
+void SpriteSetSize(Sprite& sprite, const Vec2& size)
 {
     if (size != sprite.Size)
     {
         sprite.Size = size;
-
-        SetupVertexData(sprite, workResScale);
-        UpdateVertexBufferData(sprite);
+        sprite.NeedBufferUpdate = true;
     }
 }
 
-void SpriteSetScale(Sprite& sprite, const Vec2& workResScale, const Vec2& scale)
+void SpriteSetScale(Sprite& sprite, const Vec2& scale)
 {
     if (scale != Vec2(1.0f, 1.0f))
     {
         sprite.Scale = scale;
-
-        SetupVertexData(sprite, workResScale);
-        UpdateVertexBufferData(sprite);
+        sprite.NeedBufferUpdate = true;
     }
 }
 
-void SpriteSetColor(Sprite& sprite, const Vec2& workResScale, const uint32_t color)
+void SpriteSetColor(Sprite& sprite, const uint32_t color)
 {
     if (color != sprite.Color)
     {
         sprite.Color = color;
-
-        SetupVertexData(sprite, workResScale);
-        UpdateVertexBufferData(sprite);
+        sprite.NeedBufferUpdate = true;
     }
 }
 
-void SpriteSetTexRect(Sprite& sprite, const Vec2& workResScale, const Rect2D& texrect)
+void SpriteSetTexRect(Sprite& sprite, const Rect2D& texrect)
 {
     if (texrect != sprite.TexRect)
     {
         sprite.TexRect = texrect;
         sprite.Size = { (float)texrect.Width, (float)texrect.Height };
 
-        SetupVertexData(sprite, workResScale);
-        UpdateVertexBufferData(sprite);
+        sprite.NeedBufferUpdate = true;
     }
 }
 
-void SpriteDraw(const Sprite& sprite)
+void SpriteDraw(Sprite& sprite, const Vec2& workResScale)
 {
+    if (sprite.NeedBufferUpdate)
+    {
+        SetupVertexData(sprite, workResScale);
+        UpdateVertexBufferData(sprite);
+
+        sprite.NeedBufferUpdate = false;
+    }
+
     glBindTexture(GL_TEXTURE_2D, sprite.Texture->Id);
 
     BindVertexBuffer(sprite.VertexBuffer);
     BindIndexBuffer(sprite.IndexBuffer);
 
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }

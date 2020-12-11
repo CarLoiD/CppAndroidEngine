@@ -23,15 +23,16 @@ typedef struct {
     VertexBuffer VertexBuffer;
     IndexBuffer IndexBuffer;
     SpriteVertex BufferData[4];
+    bool NeedBufferUpdate = true;
 } Sprite;
 
 void CreateSprite(Sprite& sprite, const uint32_t program, const Vec2& workResScale, Texture2D& texture, const Vec2& position = { 0.0f, 0.0f });
 void DestroySprite(Sprite& sprite);
-void SpriteSetPosition(Sprite& sprite, const Vec2& workResScale, const Vec2& position);
-void SpriteSetSize(Sprite& sprite, const Vec2& workResScale, const Vec2& size);
-void SpriteSetScale(Sprite& sprite, const Vec2& workResScale, const Vec2& scale);
-void SpriteSetColor(Sprite& sprite, const Vec2& workResScale, const uint32_t color);
-void SpriteSetTexRect(Sprite& sprite, const Vec2& workResScale, const Rect2D& texrect);
-void SpriteDraw(const Sprite& sprite);
+void SpriteSetPosition(Sprite& sprite, const Vec2& position);
+void SpriteSetSize(Sprite& sprite, const Vec2& size);
+void SpriteSetScale(Sprite& sprite, const Vec2& scale);
+void SpriteSetColor(Sprite& sprite, const uint32_t color);
+void SpriteSetTexRect(Sprite& sprite, const Rect2D& texrect);
+void SpriteDraw(Sprite& sprite, const Vec2& workResScale);
 
 #endif // SPRITE_H

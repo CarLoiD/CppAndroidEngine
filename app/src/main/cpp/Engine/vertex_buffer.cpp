@@ -59,6 +59,13 @@ void CreateVertexBuffer(const uint32_t program, const VertexElement* layout,
     glBindBuffer(GL_ARRAY_BUFFER, buffer.Id);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)buffer.Size, buffer.Data, usage);
 
+    uint16_t offset = 0;
+
+    for (uint32_t index = 0; index < count; ++index) {
+        glEnableVertexAttribArray(index);
+        DefineVertexAttribPointer(program, layout[index], buffer.Stride, offset);
+    }
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 

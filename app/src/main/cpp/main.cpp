@@ -1,42 +1,21 @@
 #include "engine.h"
 
-const char* g_vsCode = R"(
-attribute vec4 Position;
-attribute vec4 Color;
-attribute vec2 TexCoord;
+typedef struct {
+    float Position[3];
+    float Color[4];
+    float TexCoord[2];
+} Vertex;
 
-varying vec4 v_Color;
-varying vec2 v_TexCoord;
+typedef struct {
+    uint32_t Id;
+    Vec2 Position;
+    Vec2 Size;
+    Vec2 Scale;
+    Rect2D TexRect;
+    uint32_t Color;
+} CustomSprite;
 
-uniform mat4 ModelViewProj;
-
-void main()
-{
-    gl_Position = Position * ModelViewProj;
-    v_TexCoord = TexCoord;
-    v_Color = Color;
-}
-)";
-
-const char* g_psCode = R"(
-precision mediump float;
-
-varying vec4 v_Color;
-varying vec2 v_TexCoord;
-
-uniform sampler2D tex2d;
-
-void main()
-{
-    vec4 texColor = texture2D(tex2d, v_TexCoord);
-
-    if (texColor.a < 0.1) {
-        discard;
-    }
-
-    gl_FragColor = texColor * v_Color;
-}
-)";
+constexpr const uint32_t g_maxSprites = 2;
 
 constexpr const float g_dinoScale = 1.5f;
 constexpr const float g_groundScale = 1.0f;
@@ -44,16 +23,21 @@ constexpr const float g_groundScale = 1.0f;
 uint32_t g_clearColor = 0xFFFFFFFF;
 uint32_t g_objectsColor = 0x505050FF;
 
-Texture2D dinoTex;
-Texture2D groundTex;
+Texture2D g_spritesTex;
 
-Sprite dino;
-Sprite ground;
+VertexBuffer g_spritesBuffer;
+IndexBuffer g_spritesIndexBuffer;
 
-void LoadTextures();
-void LoadSprites();
-void DestroyTextures();
-void DestroySprites();
+Vertex g_spritesVertices[4 * g_maxSprites];
+uint16_t g_spritesIndices[6 * g_maxSprites];
+
+const uint32_t nIndices = sizeof(g_spritesIndices) / sizeof(uint16_t);
+
+CustomSprite dino;
+CustomSprite ground;
+
+void SetupVertexData(const CustomSprite& sprite, const Vec2& workResScale);
+void SetupIndexData();
 
 void Application::Create()
 {
@@ -62,10 +46,8 @@ void Application::Create()
     Shader vertexShader;
     Shader pixelShader;
 
-    glViewport(0.0f, 0.0f, (float)gfxGetDisplayWidth(), (float)gfxGetDisplayHeight());
-
-    gfxCompileShaderFromCode(g_vsCode, ShaderType::VertexShader, vertexShader);
-    gfxCompileShaderFromCode(g_psCode, ShaderType::PixelShader, pixelShader);
+    gfxCompileShaderFromAsset("shaders/vertex_shader.glsl", ShaderType::VertexShader, vertexShader);
+    gfxCompileShaderFromAsset("shaders/pixel_shader.glsl", ShaderType::PixelShader, pixelShader);
 
     gfxBindShader(vertexShader);
     gfxBindShader(pixelShader);
@@ -73,10 +55,48 @@ void Application::Create()
     gfxSetPrimitiveType(PrimitiveType::TriangleList);
     gfxDisableDepthBufferTesting();
 
-    LoadTextures();
-    LoadSprites();
+    gfxCreateTexture2D("textures/game_sprites.png", g_spritesTex, false, true);
+    gfxBindTexture2D(g_spritesTex);
 
-    gfxSpriteSetPosition(dino, { 0.0f, 200.0f });
+    dino.Id = 0;
+    dino.Position = { 0.0f, 0.0f };
+    dino.Scale    = { g_dinoScale, g_dinoScale };
+    dino.TexRect  = { 1680.0f, 4.0f, 81, 92 };
+    dino.Size     = { (float)dino.TexRect.Width, (float)dino.TexRect.Height };
+    dino.Color    = g_objectsColor;
+
+    SetupVertexData(dino, gfxGetWorkResScale());
+
+    ground.Id = 1;
+    ground.Position = { 0.0f, 200.0f };
+    ground.Scale    = { g_groundScale, g_groundScale };
+    ground.TexRect  = { 0.0f, 0.0f, 80, 80 };
+    ground.Size     = { (float)ground.TexRect.Width, (float)ground.TexRect.Height };
+    ground.Color    = g_objectsColor;
+
+    SetupVertexData(ground, gfxGetWorkResScale());
+
+    g_spritesBuffer.Stride = sizeof(Vertex);
+    g_spritesBuffer.Size   = sizeof(g_spritesVertices);
+    g_spritesBuffer.Data   = (void*)g_spritesVertices;
+
+    const VertexElement layout[] = {
+        VertexElement::Position,
+        VertexElement::Color,
+        VertexElement::TexCoord
+    }; const uint32_t nLayout = sizeof(layout) / sizeof(VertexElement);
+
+    gfxCreateVertexBuffer(layout, nLayout, g_spritesBuffer, true);
+    gfxBindVertexBuffer(g_spritesBuffer);
+
+    SetupIndexData();
+    
+    g_spritesIndexBuffer.Stride = sizeof(uint16_t);
+    g_spritesIndexBuffer.Size   = sizeof(g_spritesIndices);
+    g_spritesIndexBuffer.Data   = (void*)g_spritesIndices;
+
+    gfxCreateIndexBuffer(g_spritesIndexBuffer);
+    gfxBindIndexBuffer(g_spritesIndexBuffer);
 
     const Vec2 displayRes = { (float)gfxGetDisplayWidth(), (float)gfxGetDisplayHeight() };
     const ScreenRect projRect = { 0.0f, displayRes.X, displayRes.Y, 0.0f };
@@ -88,74 +108,57 @@ void Application::Create()
 
 void Application::Update(const float deltaTime)
 {
-    if (hasTouchEvent()) {
-
-    }
+    if (hasTouchEvent()) {}
 
     gfxFlushMVPMatrix();
 
     gfxClearBackBuffer(g_clearColor);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(SpriteVertex), (void*)dino.BufferData->Position);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)dino.BufferData->Color);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)dino.BufferData->TexCoord);
-
-    gfxDrawSprite(dino);
-
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(SpriteVertex), (void*)ground.BufferData->Position);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)ground.BufferData->Color);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(SpriteVertex), (void*)ground.BufferData->TexCoord);
-
-    gfxDrawSprite(ground);
+    gfxDrawIndexed(nIndices);
 }
 
 void Application::Destroy()
 {
-    DestroySprites();
-    DestroyTextures();
+    gfxDestroyTexture2D(g_spritesTex);
+    gfxDestroyIndexBuffer(g_spritesIndexBuffer);
+    gfxDestroyVertexBuffer(g_spritesBuffer);
 }
 
-void LoadTextures()
+void SetupVertexData(const CustomSprite& sprite, const Vec2& workResScale)
 {
-    gfxCreateTexture2D("textures/dino.png", dinoTex, false);
-    gfxCreateTexture2D("textures/ground.png", groundTex, false, true);
+    const float texWidth  = (float)g_spritesTex.Width;
+    const float texHeight = (float)g_spritesTex.Height;
+
+    const float posX = sprite.Position.X * workResScale.X;
+    const float posY = sprite.Position.Y * workResScale.Y;
+    const float posSizeX = (sprite.Position.X + sprite.Size.X * sprite.Scale.X) * workResScale.X;
+    const float posSizeY = (sprite.Position.Y + sprite.Size.Y * sprite.Scale.Y) * workResScale.Y;
+
+    const float texWidthX  = sprite.TexRect.X / texWidth;
+    const float texHeightY = sprite.TexRect.Y / texHeight;
+
+    const float texWidthOffsetX  = (sprite.TexRect.X + sprite.TexRect.Width) / texWidth;
+    const float texHeightOffsetY = (sprite.TexRect.Y + sprite.TexRect.Height) / texHeight;
+
+    float r, g, b, a;
+    DwordToColorNormalized(sprite.Color, r, g, b, a);
+
+    g_spritesVertices[ 4 * sprite.Id + 0 ] = { { posX    , posY    , 0.0f }, { r, g, b, a }, { texWidthX      , texHeightY       } };
+    g_spritesVertices[ 4 * sprite.Id + 1 ] = { { posSizeX, posSizeY, 0.0f }, { r, g, b, a }, { texWidthOffsetX, texHeightOffsetY } };
+    g_spritesVertices[ 4 * sprite.Id + 2 ] = { { posX    , posSizeY, 0.0f }, { r, g, b, a }, { texWidthX      , texHeightOffsetY } };
+    g_spritesVertices[ 4 * sprite.Id + 3 ] = { { posSizeX, posY    , 0.0f }, { r, g, b, a }, { texWidthOffsetX, texHeightY       } };
 }
 
-void LoadSprites()
+void SetupIndexData()
 {
-    // Dino
-    gfxCreateSprite(dino, dinoTex);
-    gfxSpriteSetColor(dino, g_objectsColor);
-    gfxSpriteSetScale(dino, { g_dinoScale, g_dinoScale });
-//    gfxSpriteSetTexRect(dino, { 0.0f, 0.0f, 84, 87 });
+    for (uint32_t index = 0; index < g_maxSprites; ++index)
+    {
+        g_spritesIndices[6 * index + 0] = 6 * index + 0;
+        g_spritesIndices[6 * index + 1] = 6 * index + 1;
+        g_spritesIndices[6 * index + 2] = 6 * index + 2;
+        g_spritesIndices[6 * index + 3] = 6 * index + 0;
+        g_spritesIndices[6 * index + 4] = 6 * index + 3;
+        g_spritesIndices[6 * index + 5] = 6 * index + 1;
+    }
 
-//    // Ground
-    gfxCreateSprite(ground, groundTex);
-    gfxSpriteSetColor(ground, g_objectsColor);
-//    gfxSpriteSetPosition(ground, { 0.0f, (float)gfxGetDisplayHeight() - ground.Size.Y });
-}
-
-void DestroyTextures()
-{
-    gfxDestroyTexture2D(dinoTex);
-    gfxDestroyTexture2D(groundTex);
-}
-
-void DestroySprites()
-{
-    gfxDestroySprite(dino);
-    gfxDestroySprite(ground);
+    // 0, 1, 2, 0, 3, 1
 }
