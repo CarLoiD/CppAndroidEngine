@@ -1,5 +1,9 @@
 #include "engine.h"
 
+#include <vector>
+#include <unordered_map>
+#include <string>
+
 typedef struct {
     float Position[3];
     float Color[4];
@@ -18,10 +22,18 @@ typedef struct {
 constexpr const uint32_t g_maxSprites = 2;
 
 constexpr const float g_dinoScale = 1.5f;
-constexpr const float g_groundScale = 1.0f;
+constexpr const float g_groundScale = 1.5f;
+
+constexpr const float g_dinoPosX = 100.0f;
+constexpr const float g_objectsSpeed = 300.0f;
+constexpr const float g_gravity = 200.0f;
 
 uint32_t g_clearColor = 0xFFFFFFFF;
 uint32_t g_objectsColor = 0x505050FF;
+
+float g_objectsVelocity = 1.0f;
+
+bool g_isJumping = false;
 
 Texture2D g_spritesTex;
 
@@ -36,8 +48,10 @@ const uint32_t nIndices = sizeof(g_spritesIndices) / sizeof(uint16_t);
 CustomSprite dino;
 CustomSprite ground;
 
-void SetupVertexData(const CustomSprite& sprite, const Vec2& workResScale);
+void SetupSprites();
+void UpdateVertexData(const CustomSprite& sprite);
 void SetupIndexData();
+void FlushBufferData();
 
 void Application::Create()
 {
@@ -52,29 +66,10 @@ void Application::Create()
     gfxBindShader(vertexShader);
     gfxBindShader(pixelShader);
 
-    gfxSetPrimitiveType(PrimitiveType::TriangleList);
-    gfxDisableDepthBufferTesting();
-
     gfxCreateTexture2D("textures/game_sprites.png", g_spritesTex, false, true);
     gfxBindTexture2D(g_spritesTex);
 
-    dino.Id = 0;
-    dino.Position = { 0.0f, 0.0f };
-    dino.Scale    = { g_dinoScale, g_dinoScale };
-    dino.TexRect  = { 1680.0f, 4.0f, 81, 92 };
-    dino.Size     = { (float)dino.TexRect.Width, (float)dino.TexRect.Height };
-    dino.Color    = g_objectsColor;
-
-    SetupVertexData(dino, gfxGetWorkResScale());
-
-    ground.Id = 1;
-    ground.Position = { 0.0f, 200.0f };
-    ground.Scale    = { g_groundScale, g_groundScale };
-    ground.TexRect  = { 0.0f, 0.0f, 80, 80 };
-    ground.Size     = { (float)ground.TexRect.Width, (float)ground.TexRect.Height };
-    ground.Color    = g_objectsColor;
-
-    SetupVertexData(ground, gfxGetWorkResScale());
+    SetupSprites();
 
     g_spritesBuffer.Stride = sizeof(Vertex);
     g_spritesBuffer.Size   = sizeof(g_spritesVertices);
@@ -89,6 +84,7 @@ void Application::Create()
     gfxCreateVertexBuffer(layout, nLayout, g_spritesBuffer, true);
     gfxBindVertexBuffer(g_spritesBuffer);
 
+    // Setup index data before binding it to the buffer
     SetupIndexData();
     
     g_spritesIndexBuffer.Stride = sizeof(uint16_t);
@@ -104,12 +100,47 @@ void Application::Create()
     gfxSetWorldMatrix(mtxIdentity());
     gfxSetViewMatrix(mtxIdentity());
     gfxSetProjectionMatrix(mtxOrthoOffCenter(projRect, 0.0f, 1.0f));
+
+    gfxSetPrimitiveType(PrimitiveType::TriangleList);
+
+    // 2D rendering, disable depth test stage
+    gfxDisableDepthBufferTesting();
 }
 
 void Application::Update(const float deltaTime)
 {
-    if (hasTouchEvent()) {}
+    if (hasTouchEvent())
+    {
+        if (!g_isJumping)
+        {
+            dino.Position.Y -= 140.0f;
+            g_isJumping = true;
+        }
+    }
 
+    dino.Position.Y += g_gravity * deltaTime;
+
+    if (dino.Position.Y + (dino.Size.Y * dino.Scale.Y) > ground.Position.Y + (ground.Size.Y * ground.Scale.Y))
+    {
+        const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
+        const float dinoSize = dino.Size.Y * dino.Scale.Y;
+
+        dino.Position.Y = groundBottom - dinoSize;
+
+        g_isJumping = false;
+    }
+
+    ground.Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
+
+    // Scroll the ground infinitely
+    if (ground.Position.X < -((ground.Size.X * ground.Scale.X) / 2.0f)) {
+        ground.Position.X = 0.0f;
+    }
+
+    UpdateVertexData(ground);
+    UpdateVertexData(dino);
+
+    FlushBufferData();
     gfxFlushMVPMatrix();
 
     gfxClearBackBuffer(g_clearColor);
@@ -123,8 +154,39 @@ void Application::Destroy()
     gfxDestroyVertexBuffer(g_spritesBuffer);
 }
 
-void SetupVertexData(const CustomSprite& sprite, const Vec2& workResScale)
+void SetupSprites()
 {
+    // Dino
+
+    dino.Id       = 0;
+    dino.Scale    = { g_dinoScale, g_dinoScale };
+    dino.TexRect  = { 1680.0f, 4.0f, 81, 92 };
+    dino.Size     = { (float)dino.TexRect.Width, (float)dino.TexRect.Height };
+    dino.Color    = g_objectsColor;
+
+    // Ground
+
+    ground.Id       = 1;
+    ground.Scale    = { g_groundScale, g_groundScale };
+    ground.TexRect  = { 0.0f, 103.0f, 2446 * 2, 26 };
+    ground.Size     = { (float)ground.TexRect.Width, (float)ground.TexRect.Height };
+    ground.Position = { 0.0f, (float)gfxGetDisplayHeight() - (ground.Size.Y * ground.Scale.Y) - 50.0f };
+    ground.Color    = g_objectsColor;
+
+    // Move dino to be at the ground
+    const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
+    const float dinoSize = dino.Size.Y * dino.Scale.Y;
+
+    dino.Position = { g_dinoPosX, groundBottom - dinoSize };
+
+    UpdateVertexData(dino);
+    UpdateVertexData(ground);
+}
+
+void UpdateVertexData(const CustomSprite& sprite)
+{
+    const Vec2 workResScale = gfxGetWorkResScale();
+
     const float texWidth  = (float)g_spritesTex.Width;
     const float texHeight = (float)g_spritesTex.Height;
 
@@ -152,13 +214,16 @@ void SetupIndexData()
 {
     for (uint32_t index = 0; index < g_maxSprites; ++index)
     {
-        g_spritesIndices[6 * index + 0] = 6 * index + 0;
-        g_spritesIndices[6 * index + 1] = 6 * index + 1;
-        g_spritesIndices[6 * index + 2] = 6 * index + 2;
-        g_spritesIndices[6 * index + 3] = 6 * index + 0;
-        g_spritesIndices[6 * index + 4] = 6 * index + 3;
-        g_spritesIndices[6 * index + 5] = 6 * index + 1;
+        g_spritesIndices[6 * index + 0] = 4 * index + 0;
+        g_spritesIndices[6 * index + 1] = 4 * index + 1;
+        g_spritesIndices[6 * index + 2] = 4 * index + 2;
+        g_spritesIndices[6 * index + 3] = 4 * index + 0;
+        g_spritesIndices[6 * index + 4] = 4 * index + 3;
+        g_spritesIndices[6 * index + 5] = 4 * index + 1;
     }
+}
 
-    // 0, 1, 2, 0, 3, 1
+void FlushBufferData()
+{
+    gfxUpdateVertexBuffer(g_spritesVertices, sizeof(g_spritesVertices), g_spritesBuffer);
 }
