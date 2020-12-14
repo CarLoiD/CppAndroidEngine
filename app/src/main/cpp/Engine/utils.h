@@ -31,4 +31,9 @@ inline void DwordToColorNormalized(const uint32_t dword, float& r, float& g, flo
     a /= 255.0f;
 }
 
+inline void ColorToDword(const uint32_t r, const uint32_t g, const uint32_t b, const uint32_t a, uint32_t& dword)
+{
+    dword = (r << 24) | (g << 16) | (b << 8) | (a);
+}
+
 #endif // UTILS_H

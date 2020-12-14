@@ -17,44 +17,75 @@ typedef struct {
     Vec2 Scale;
     Rect2D TexRect;
     uint32_t Color;
-} CustomSprite;
+} BatchedSprite;
 
-constexpr const uint32_t g_maxSprites = 2;
+constexpr const uint32_t g_maxSprites = 50;
 
 constexpr const float g_dinoScale = 1.5f;
 constexpr const float g_groundScale = 1.5f;
+constexpr const float g_cloudsScale = 1.5f;
+constexpr const float g_crexLogoScale = 4.0f;
+constexpr const float g_developerInfoScale = 1.8f;
+constexpr const float g_touchHintScale = 3.0f;
 
 constexpr const float g_dinoPosX = 100.0f;
-constexpr const float g_objectsSpeed = 300.0f;
-constexpr const float g_gravity = 200.0f;
+constexpr const float g_objectsSpeed = 900.0f;
+constexpr const float g_maxGravity = 1500.0f;
+constexpr const float g_jumpForce = 1650.0f;
+constexpr const float g_jumpWeight = 4750.0f;
+constexpr const float g_cloudsDistance = 400.0f;
+constexpr const float g_cloudsSpeed = 200.0f;
+constexpr const uint32_t g_cloudsMaxUpRange = 40;
+constexpr const uint32_t g_cloudsMaxDownRange = 400;
+constexpr const uint32_t g_maxClouds = 3;
 
-uint32_t g_clearColor = 0xFFFFFFFF;
+uint32_t g_clearColor   = 0xFFFFFFFF;
 uint32_t g_objectsColor = 0x505050FF;
+uint32_t g_touchHintAlpha = 255;
 
 float g_objectsVelocity = 1.0f;
+float g_gravity = 0.0f;
+float g_alphaTimer = 0.0f;
 
 bool g_isJumping = false;
+bool g_isPlaying = false;
+bool g_isFadingOut = true;
 
 Texture2D g_spritesTex;
 
 VertexBuffer g_spritesBuffer;
 IndexBuffer g_spritesIndexBuffer;
 
-Vertex g_spritesVertices[4 * g_maxSprites];
-uint16_t g_spritesIndices[6 * g_maxSprites];
+Vertex* g_spritesVertices;
+uint16_t* g_spritesIndices;
 
-const uint32_t nIndices = sizeof(g_spritesIndices) / sizeof(uint16_t);
+const uint32_t nIndices = ((6 * g_maxSprites) * sizeof(uint16_t)) / sizeof(uint16_t);
 
-CustomSprite dino;
-CustomSprite ground;
+BatchedSprite dino;
+BatchedSprite ground;
+BatchedSprite clouds[g_maxClouds];
+BatchedSprite crexLogo;
+BatchedSprite developerInfo;
+BatchedSprite touchHint;
 
 void SetupSprites();
-void UpdateVertexData(const CustomSprite& sprite);
+void UpdateVertexData(const BatchedSprite& sprite);
 void SetupIndexData();
 void FlushBufferData();
+uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max);
 
 void Application::Create()
 {
+    // Seed the RNG
+    srand(time(0));
+
+    g_spritesVertices = new Vertex[4 * g_maxSprites];
+    g_spritesIndices = new uint16_t[6 * g_maxSprites];
+
+    // Clear the buffer data
+    memset(g_spritesVertices, 0, sizeof(g_spritesVertices));
+    memset(g_spritesIndices, 0, sizeof(g_spritesIndices));
+
     gfxSetWorkResolution({ 1280.0f, 720.0f });  // 720p as default work resolution
 
     Shader vertexShader;
@@ -72,7 +103,7 @@ void Application::Create()
     SetupSprites();
 
     g_spritesBuffer.Stride = sizeof(Vertex);
-    g_spritesBuffer.Size   = sizeof(g_spritesVertices);
+    g_spritesBuffer.Size   = (4 * g_maxSprites) * sizeof(Vertex);
     g_spritesBuffer.Data   = (void*)g_spritesVertices;
 
     const VertexElement layout[] = {
@@ -88,7 +119,7 @@ void Application::Create()
     SetupIndexData();
     
     g_spritesIndexBuffer.Stride = sizeof(uint16_t);
-    g_spritesIndexBuffer.Size   = sizeof(g_spritesIndices);
+    g_spritesIndexBuffer.Size   = (6 * g_maxSprites) * sizeof(uint16_t);
     g_spritesIndexBuffer.Data   = (void*)g_spritesIndices;
 
     gfxCreateIndexBuffer(g_spritesIndexBuffer);
@@ -113,33 +144,76 @@ void Application::Update(const float deltaTime)
     {
         if (!g_isJumping)
         {
-            dino.Position.Y -= 140.0f;
+            g_gravity = -g_jumpForce;
             g_isJumping = true;
         }
     }
 
+    g_alphaTimer += deltaTime;
+
+    if (g_alphaTimer > 2.0f) {
+        touchHint.Color = 0xFFFFFF00;
+    }
+
+    // Update the jump motion
+    g_gravity += g_jumpWeight * deltaTime;
+    ClampMax(g_gravity, g_maxGravity);
+
+    // Apply the force
     dino.Position.Y += g_gravity * deltaTime;
 
+    if (g_isPlaying)
+    {
+        // Scroll the ground infinitely
+        ground.Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
+
+        for (uint32_t index = 0; index < g_maxClouds; ++index)
+        {
+            BatchedSprite *actualCloud = &clouds[index];
+
+            // Move
+            actualCloud->Position.X -= g_cloudsSpeed * deltaTime;
+        }
+    }
+
+    // Check ground collision
     if (dino.Position.Y + (dino.Size.Y * dino.Scale.Y) > ground.Position.Y + (ground.Size.Y * ground.Scale.Y))
     {
         const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
         const float dinoSize = dino.Size.Y * dino.Scale.Y;
 
         dino.Position.Y = groundBottom - dinoSize;
-
         g_isJumping = false;
     }
 
-    ground.Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
-
-    // Scroll the ground infinitely
     if (ground.Position.X < -((ground.Size.X * ground.Scale.X) / 2.0f)) {
         ground.Position.X = 0.0f;
     }
 
+    // Scroll the clouds
+
+    for (uint32_t index = 0; index < g_maxClouds; ++index)
+    {
+        BatchedSprite* actualCloud = &clouds[index];
+
+        // Check collision with the left-most border
+        if (actualCloud->Position.X < -(actualCloud->Size.X * actualCloud->Scale.X))
+        {
+            const float cloudsRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
+            actualCloud->Position = { (float)gfxGetDisplayWidth(), cloudsRangeY };
+        }
+
+        UpdateVertexData(clouds[index]);
+    }
+
+    // Update dynamic buffer data changes
     UpdateVertexData(ground);
     UpdateVertexData(dino);
+    UpdateVertexData(crexLogo);
+    UpdateVertexData(developerInfo);
+    UpdateVertexData(touchHint);
 
+    // Flush ModelViewProj and map updated dynamic buffer data
     FlushBufferData();
     gfxFlushMVPMatrix();
 
@@ -150,8 +224,13 @@ void Application::Update(const float deltaTime)
 void Application::Destroy()
 {
     gfxDestroyTexture2D(g_spritesTex);
+
     gfxDestroyIndexBuffer(g_spritesIndexBuffer);
     gfxDestroyVertexBuffer(g_spritesBuffer);
+
+    // After GPU unbind buffer data, make sure to deallocate the used heap memory
+    delete[] g_spritesIndices;
+    delete[] g_spritesVertices;
 }
 
 void SetupSprites()
@@ -179,11 +258,59 @@ void SetupSprites()
 
     dino.Position = { g_dinoPosX, groundBottom - dinoSize };
 
+    // Clouds
+
+    for (uint32_t index = 0; index < g_maxClouds; ++index)
+    {
+        const float maxCloudRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
+
+        clouds[index].Id       = 2 + index;
+        clouds[index].Scale    = { g_cloudsScale, g_cloudsScale };
+        clouds[index].TexRect  = { 166.0f, 0.0f, 92, 29 };
+        clouds[index].Size     = { (float)clouds[index].TexRect.Width, (float)clouds[0].TexRect.Height };
+        clouds[index].Position = { (float)gfxGetDisplayWidth() + (index * g_cloudsDistance), maxCloudRangeY };
+        clouds[index].Color    = g_objectsColor;
+
+        UpdateVertexData(clouds[index]);
+    }
+
+    // C-Rex Logo
+
+    crexLogo.Id       = 5;
+    crexLogo.Scale    = { g_crexLogoScale, g_crexLogoScale };
+    crexLogo.TexRect  = { 1293.0f, 58.0f, 178, 25 };
+    crexLogo.Size     = { (float)crexLogo.TexRect.Width, (float)crexLogo.TexRect.Height };
+    crexLogo.Position = { 295.0f, 100.0f };
+    crexLogo.Color    = 0xFFFFFFFF;
+
+    // Developer Info
+
+    developerInfo.Id       = 6;
+    developerInfo.Scale    = { g_developerInfoScale, g_developerInfoScale };
+    developerInfo.TexRect  = { 1487.0f, 54.0f, 178, 11 };
+    developerInfo.Size     = { (float)developerInfo.TexRect.Width, (float)developerInfo.TexRect.Height };
+    developerInfo.Color    = 0xFFFFFFFF;
+
+    const float developerInfoX = (float)gfxGetDisplayWidth() - (developerInfo.Size.X * developerInfo.Scale.X) - 15.0f;
+    const float developerInfoY = (float)gfxGetDisplayHeight() - (developerInfo.Size.Y * developerInfo.Scale.Y) - 15.0f;
+
+    developerInfo.Position = { developerInfoX, developerInfoY };
+
+    touchHint.Id       = 7;
+    touchHint.Scale    = { g_touchHintScale, g_touchHintScale };
+    touchHint.TexRect  = { 1487.0f, 69.0f, 123, 11 };
+    touchHint.Size     = { (float)touchHint.TexRect.Width, (float)touchHint.TexRect.Height };
+    touchHint.Position = { 470.0f, 350.0f };
+    touchHint.Color    = 0xFFFFFFFF;
+
+    UpdateVertexData(touchHint);
+    UpdateVertexData(developerInfo);
+    UpdateVertexData(crexLogo);
     UpdateVertexData(dino);
     UpdateVertexData(ground);
 }
 
-void UpdateVertexData(const CustomSprite& sprite)
+void UpdateVertexData(const BatchedSprite& sprite)
 {
     const Vec2 workResScale = gfxGetWorkResScale();
 
@@ -225,5 +352,10 @@ void SetupIndexData()
 
 void FlushBufferData()
 {
-    gfxUpdateVertexBuffer(g_spritesVertices, sizeof(g_spritesVertices), g_spritesBuffer);
+    gfxUpdateVertexBuffer(g_spritesVertices, (4 * g_maxSprites) * sizeof(Vertex), g_spritesBuffer);
+}
+
+uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max)
+{
+    return min + (rand() % max);
 }
