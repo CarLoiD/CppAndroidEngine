@@ -63,6 +63,7 @@ bool g_isPlaying = false;
 bool g_isFadingOut = true;
 bool g_isFirstMove = false;
 bool g_isDucking = false;
+bool g_isDinoDead = false;
 
 Texture2D g_spritesTex;
 
@@ -93,6 +94,7 @@ void UpdateVertexData(const BatchedSprite& sprite);
 void SetupIndexData();
 void FlushBufferData();
 void SetupAnimations();
+void SetDinoAboveGround();
 void UpdateSpriteAnimation(BatchedSprite& sprite, const Animation& animation, float& timer, uint32_t& index);
 uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max);
 
@@ -168,7 +170,7 @@ void Application::Update(const float deltaTime)
     const float touchX = getTouchScreenX(id) * (float)gfxGetDisplayWidth();
     const float touchY = getTouchScreenY(id) * (float)gfxGetDisplayHeight();
 
-    if (touchX > (float)gfxGetDisplayWidth() / 2.0f)
+    if (touchX > (float)gfxGetDisplayWidth() / 2.0f && !g_isDinoDead)
     {
         if (!g_isJumping)
         {
@@ -184,11 +186,7 @@ void Application::Update(const float deltaTime)
         g_isDucking = true;
 
         UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
-
-        const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
-        const float dinoSize = dino.Size.Y * dino.Scale.Y;
-
-        dino.Position.Y = groundBottom - dinoSize;
+        SetDinoAboveGround();
     }
     else
     {
@@ -197,11 +195,7 @@ void Application::Update(const float deltaTime)
             g_dinoAnimation = &dinoRun;
 
             UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
-
-            const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
-            const float dinoSize = dino.Size.Y * dino.Scale.Y;
-
-            dino.Position.Y = groundBottom - dinoSize;
+            SetDinoAboveGround();
 
             g_isDucking = false;
         }
@@ -258,13 +252,11 @@ void Application::Update(const float deltaTime)
     // Check ground collision
     if (dino.Position.Y + (dino.Size.Y * dino.Scale.Y) > ground.Position.Y + (ground.Size.Y * ground.Scale.Y))
     {
-        const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
-        const float dinoSize = dino.Size.Y * dino.Scale.Y;
-
-        dino.Position.Y = groundBottom - dinoSize;
+        SetDinoAboveGround();
 
         if (!g_isPlaying && g_isJumping)
         {
+            // Hide main menu title's
             touchHint.Position     = { (float)gfxGetDisplayWidth(), 0.0f };
             crexLogo.Position      = { (float)gfxGetDisplayWidth(), 0.0f };
             developerInfo.Position = { (float)gfxGetDisplayWidth(), 0.0f };
@@ -468,6 +460,16 @@ void SetupAnimations()
     dinoDuckRun.FrameStep = 0.1f;
     dinoDuckRun.Frames.push_back({ 2211.0f, 39.0f, 110, 52 });
     dinoDuckRun.Frames.push_back({ 2329.0f, 39.0f, 110, 52 });
+
+
+}
+
+void SetDinoAboveGround()
+{
+    const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
+    const float dinoSize = dino.Size.Y * dino.Scale.Y;
+
+    dino.Position.Y = groundBottom - dinoSize;
 }
 
 void UpdateSpriteAnimation(BatchedSprite& sprite, const Animation& animation, float& timer, uint32_t& index)
