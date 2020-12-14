@@ -1,8 +1,6 @@
 #include "engine.h"
 
 #include <vector>
-#include <unordered_map>
-#include <string>
 
 typedef struct {
     float Position[3];
@@ -18,6 +16,11 @@ typedef struct {
     Rect2D TexRect;
     uint32_t Color;
 } BatchedSprite;
+
+typedef struct {
+    float FrameStep;
+    std::vector<Rect2D> Frames;
+} Animation;
 
 constexpr const uint32_t g_maxSprites = 50;
 
@@ -35,21 +38,31 @@ constexpr const float g_jumpForce = 1650.0f;
 constexpr const float g_jumpWeight = 4750.0f;
 constexpr const float g_cloudsDistance = 400.0f;
 constexpr const float g_cloudsSpeed = 200.0f;
+constexpr const float g_fadeStep = 0.7f;
 constexpr const uint32_t g_cloudsMaxUpRange = 40;
 constexpr const uint32_t g_cloudsMaxDownRange = 400;
+constexpr const uint32_t g_whiteColor = 0xFFFFFFFF;
 constexpr const uint32_t g_maxClouds = 3;
 
-uint32_t g_clearColor   = 0xFFFFFFFF;
+const Vec2 g_touchHintPos = { 470.0f, 350.0f };
+
+uint32_t g_spriteId = 0;
+uint32_t g_clearColor = 0xFFFFFFFF;
 uint32_t g_objectsColor = 0x505050FF;
 uint32_t g_touchHintAlpha = 255;
+uint32_t g_dinoAnimationIndex = 0;
 
 float g_objectsVelocity = 1.0f;
 float g_gravity = 0.0f;
 float g_alphaTimer = 0.0f;
+float g_moveTimer = 0.0f;
+float g_dinoAnimationTimer = 0.0f;
 
 bool g_isJumping = false;
 bool g_isPlaying = false;
 bool g_isFadingOut = true;
+bool g_isFirstMove = false;
+bool g_isDucking = false;
 
 Texture2D g_spritesTex;
 
@@ -68,10 +81,19 @@ BatchedSprite crexLogo;
 BatchedSprite developerInfo;
 BatchedSprite touchHint;
 
+Animation dinoIdle;
+Animation dinoRun;
+Animation dinoDuckRun;
+Animation dinoDied;
+
+Animation* g_dinoAnimation = &dinoIdle;
+
 void SetupSprites();
 void UpdateVertexData(const BatchedSprite& sprite);
 void SetupIndexData();
 void FlushBufferData();
+void SetupAnimations();
+void UpdateSpriteAnimation(BatchedSprite& sprite, const Animation& animation, float& timer, uint32_t& index);
 uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max);
 
 void Application::Create()
@@ -83,8 +105,8 @@ void Application::Create()
     g_spritesIndices = new uint16_t[6 * g_maxSprites];
 
     // Clear the buffer data
-    memset(g_spritesVertices, 0, sizeof(g_spritesVertices));
-    memset(g_spritesIndices, 0, sizeof(g_spritesIndices));
+    memset(g_spritesVertices, 0, (4 * g_maxSprites) * sizeof(Vertex));
+    memset(g_spritesIndices, 0, (6 * g_maxSprites) * sizeof(uint16_t));
 
     gfxSetWorkResolution({ 1280.0f, 720.0f });  // 720p as default work resolution
 
@@ -101,6 +123,7 @@ void Application::Create()
     gfxBindTexture2D(g_spritesTex);
 
     SetupSprites();
+    SetupAnimations();
 
     g_spritesBuffer.Stride = sizeof(Vertex);
     g_spritesBuffer.Size   = (4 * g_maxSprites) * sizeof(Vertex);
@@ -140,19 +163,76 @@ void Application::Create()
 
 void Application::Update(const float deltaTime)
 {
-    if (hasTouchEvent())
+    const TouchScreenId id = TouchScreenId::Touch;
+
+    const float touchX = getTouchScreenX(id) * (float)gfxGetDisplayWidth();
+    const float touchY = getTouchScreenY(id) * (float)gfxGetDisplayHeight();
+
+    if (touchX > (float)gfxGetDisplayWidth() / 2.0f)
     {
         if (!g_isJumping)
         {
             g_gravity = -g_jumpForce;
             g_isJumping = true;
+
+            g_dinoAnimation = &dinoIdle;
+        }
+    }
+    else if (touchX > 0.0f && !g_isJumping && g_isPlaying)
+    {
+        g_dinoAnimation = &dinoDuckRun;
+        g_isDucking = true;
+
+        UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
+
+        const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
+        const float dinoSize = dino.Size.Y * dino.Scale.Y;
+
+        dino.Position.Y = groundBottom - dinoSize;
+    }
+    else
+    {
+        if (g_isDucking)
+        {
+            g_dinoAnimation = &dinoRun;
+
+            UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
+
+            const float groundBottom = ground.Position.Y + ground.Size.Y * ground.Scale.Y;
+            const float dinoSize = dino.Size.Y * dino.Scale.Y;
+
+            dino.Position.Y = groundBottom - dinoSize;
+
+            g_isDucking = false;
         }
     }
 
+    g_dinoAnimationTimer += deltaTime;
     g_alphaTimer += deltaTime;
 
-    if (g_alphaTimer > 2.0f) {
-        touchHint.Color = 0xFFFFFF00;
+    if (g_isFirstMove) {
+        dino.Position.X += 50.0f * deltaTime;
+        g_moveTimer += deltaTime;
+    }
+
+    if (g_moveTimer > 0.4f) {
+        g_isFirstMove = false;
+    }
+
+    if (g_alphaTimer > g_fadeStep)
+    {
+        if (!g_isPlaying)
+        {
+            if (g_isFadingOut) {
+                touchHint.Position = { (float) gfxGetDisplayWidth(), 0.0f };
+                g_isFadingOut = false;
+            } else {
+                touchHint.Position = g_touchHintPos;
+                g_isFadingOut = true;
+            }
+        }
+
+        g_alphaTimer = 0.0f;
     }
 
     // Update the jump motion
@@ -162,16 +242,15 @@ void Application::Update(const float deltaTime)
     // Apply the force
     dino.Position.Y += g_gravity * deltaTime;
 
-    if (g_isPlaying)
+    if (g_isPlaying && !g_isFirstMove)
     {
         // Scroll the ground infinitely
         ground.Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
 
         for (uint32_t index = 0; index < g_maxClouds; ++index)
         {
-            BatchedSprite *actualCloud = &clouds[index];
-
             // Move
+            BatchedSprite *actualCloud = &clouds[index];
             actualCloud->Position.X -= g_cloudsSpeed * deltaTime;
         }
     }
@@ -183,6 +262,23 @@ void Application::Update(const float deltaTime)
         const float dinoSize = dino.Size.Y * dino.Scale.Y;
 
         dino.Position.Y = groundBottom - dinoSize;
+
+        if (!g_isPlaying && g_isJumping)
+        {
+            touchHint.Position     = { (float)gfxGetDisplayWidth(), 0.0f };
+            crexLogo.Position      = { (float)gfxGetDisplayWidth(), 0.0f };
+            developerInfo.Position = { (float)gfxGetDisplayWidth(), 0.0f };
+
+            g_isFirstMove = true;
+            g_isPlaying = true;
+
+            g_dinoAnimation = &dinoRun;
+        }
+
+        if (g_isPlaying && !g_isFirstMove && !g_isDucking) {
+            g_dinoAnimation = &dinoRun;
+        }
+
         g_isJumping = false;
     }
 
@@ -206,12 +302,14 @@ void Application::Update(const float deltaTime)
         UpdateVertexData(clouds[index]);
     }
 
+    UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
+
     // Update dynamic buffer data changes
-    UpdateVertexData(ground);
+    UpdateVertexData(touchHint);
     UpdateVertexData(dino);
+    UpdateVertexData(ground);
     UpdateVertexData(crexLogo);
     UpdateVertexData(developerInfo);
-    UpdateVertexData(touchHint);
 
     // Flush ModelViewProj and map updated dynamic buffer data
     FlushBufferData();
@@ -237,7 +335,7 @@ void SetupSprites()
 {
     // Dino
 
-    dino.Id       = 0;
+    dino.Id       = g_spriteId++;
     dino.Scale    = { g_dinoScale, g_dinoScale };
     dino.TexRect  = { 1680.0f, 4.0f, 81, 92 };
     dino.Size     = { (float)dino.TexRect.Width, (float)dino.TexRect.Height };
@@ -245,7 +343,7 @@ void SetupSprites()
 
     // Ground
 
-    ground.Id       = 1;
+    ground.Id       = g_spriteId++;
     ground.Scale    = { g_groundScale, g_groundScale };
     ground.TexRect  = { 0.0f, 103.0f, 2446 * 2, 26 };
     ground.Size     = { (float)ground.TexRect.Width, (float)ground.TexRect.Height };
@@ -264,7 +362,7 @@ void SetupSprites()
     {
         const float maxCloudRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
 
-        clouds[index].Id       = 2 + index;
+        clouds[index].Id       = g_spriteId++;
         clouds[index].Scale    = { g_cloudsScale, g_cloudsScale };
         clouds[index].TexRect  = { 166.0f, 0.0f, 92, 29 };
         clouds[index].Size     = { (float)clouds[index].TexRect.Width, (float)clouds[0].TexRect.Height };
@@ -276,38 +374,38 @@ void SetupSprites()
 
     // C-Rex Logo
 
-    crexLogo.Id       = 5;
+    crexLogo.Id       = g_spriteId++;
     crexLogo.Scale    = { g_crexLogoScale, g_crexLogoScale };
     crexLogo.TexRect  = { 1293.0f, 58.0f, 178, 25 };
     crexLogo.Size     = { (float)crexLogo.TexRect.Width, (float)crexLogo.TexRect.Height };
     crexLogo.Position = { 295.0f, 100.0f };
-    crexLogo.Color    = 0xFFFFFFFF;
+    crexLogo.Color    = g_whiteColor;
 
     // Developer Info
 
-    developerInfo.Id       = 6;
+    developerInfo.Id       = g_spriteId++;
     developerInfo.Scale    = { g_developerInfoScale, g_developerInfoScale };
     developerInfo.TexRect  = { 1487.0f, 54.0f, 178, 11 };
     developerInfo.Size     = { (float)developerInfo.TexRect.Width, (float)developerInfo.TexRect.Height };
-    developerInfo.Color    = 0xFFFFFFFF;
+    developerInfo.Color    = g_whiteColor;
 
     const float developerInfoX = (float)gfxGetDisplayWidth() - (developerInfo.Size.X * developerInfo.Scale.X) - 15.0f;
     const float developerInfoY = (float)gfxGetDisplayHeight() - (developerInfo.Size.Y * developerInfo.Scale.Y) - 15.0f;
 
     developerInfo.Position = { developerInfoX, developerInfoY };
 
-    touchHint.Id       = 7;
+    touchHint.Id       = g_spriteId++;
     touchHint.Scale    = { g_touchHintScale, g_touchHintScale };
     touchHint.TexRect  = { 1487.0f, 69.0f, 123, 11 };
     touchHint.Size     = { (float)touchHint.TexRect.Width, (float)touchHint.TexRect.Height };
-    touchHint.Position = { 470.0f, 350.0f };
-    touchHint.Color    = 0xFFFFFFFF;
+    touchHint.Position = g_touchHintPos;
+    touchHint.Color    = g_whiteColor;
 
-    UpdateVertexData(touchHint);
-    UpdateVertexData(developerInfo);
-    UpdateVertexData(crexLogo);
     UpdateVertexData(dino);
     UpdateVertexData(ground);
+    UpdateVertexData(crexLogo);
+    UpdateVertexData(developerInfo);
+    UpdateVertexData(touchHint);
 }
 
 void UpdateVertexData(const BatchedSprite& sprite)
@@ -353,6 +451,39 @@ void SetupIndexData()
 void FlushBufferData()
 {
     gfxUpdateVertexBuffer(g_spritesVertices, (4 * g_maxSprites) * sizeof(Vertex), g_spritesBuffer);
+}
+
+void SetupAnimations()
+{
+    // C-Rex Idle
+    dinoIdle.FrameStep = 1.0f;
+    dinoIdle.Frames.push_back({ 1680.0f, 5.0f, 81, 92 });
+
+    // C-Rex Running
+    dinoRun.FrameStep = 0.1f;
+    dinoRun.Frames.push_back({ 1857.0f, 5.0f, 80, 86 });
+    dinoRun.Frames.push_back({ 1945.0f, 5.0f, 80, 86 });
+
+    // C-Rex Duck Running
+    dinoDuckRun.FrameStep = 0.1f;
+    dinoDuckRun.Frames.push_back({ 2211.0f, 39.0f, 110, 52 });
+    dinoDuckRun.Frames.push_back({ 2329.0f, 39.0f, 110, 52 });
+}
+
+void UpdateSpriteAnimation(BatchedSprite& sprite, const Animation& animation, float& timer, uint32_t& index)
+{
+    if (timer > animation.FrameStep)
+    {
+        timer = 0.0f;
+        ++index;
+    }
+
+    if (index > animation.Frames.size() - 1) {
+        index = 0;
+    }
+
+    sprite.TexRect = animation.Frames.at(index);
+    sprite.Size = { (float)sprite.TexRect.Width, (float)sprite.TexRect.Height };
 }
 
 uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max)
