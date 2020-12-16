@@ -30,6 +30,7 @@ constexpr const float g_cloudsScale = 1.5f;
 constexpr const float g_crexLogoScale = 4.0f;
 constexpr const float g_developerInfoScale = 1.8f;
 constexpr const float g_touchHintScale = 3.0f;
+constexpr const float g_cactusScale = 1.5f;
 
 constexpr const float g_dinoPosX = 100.0f;
 constexpr const float g_objectsSpeed = 900.0f;
@@ -81,6 +82,7 @@ BatchedSprite clouds[g_maxClouds];
 BatchedSprite crexLogo;
 BatchedSprite developerInfo;
 BatchedSprite touchHint;
+BatchedSprite cactus;
 
 Animation dinoIdle;
 Animation dinoRun;
@@ -218,7 +220,7 @@ void Application::Update(const float deltaTime)
         if (!g_isPlaying)
         {
             if (g_isFadingOut) {
-                touchHint.Position = { (float) gfxGetDisplayWidth(), 0.0f };
+                touchHint.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
                 g_isFadingOut = false;
             } else {
                 touchHint.Position = g_touchHintPos;
@@ -257,9 +259,9 @@ void Application::Update(const float deltaTime)
         if (!g_isPlaying && g_isJumping)
         {
             // Hide main menu title's
-            touchHint.Position     = { (float)gfxGetDisplayWidth(), 0.0f };
-            crexLogo.Position      = { (float)gfxGetDisplayWidth(), 0.0f };
-            developerInfo.Position = { (float)gfxGetDisplayWidth(), 0.0f };
+            touchHint.Position     = { -(float)gfxGetDisplayWidth(), 0.0f };
+            crexLogo.Position      = { -(float)gfxGetDisplayWidth(), 0.0f };
+            developerInfo.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
 
             g_isFirstMove = true;
             g_isPlaying = true;
@@ -386,6 +388,8 @@ void SetupSprites()
 
     developerInfo.Position = { developerInfoX, developerInfoY };
 
+    // Touch Hint
+
     touchHint.Id       = g_spriteId++;
     touchHint.Scale    = { g_touchHintScale, g_touchHintScale };
     touchHint.TexRect  = { 1487.0f, 69.0f, 123, 11 };
@@ -393,11 +397,21 @@ void SetupSprites()
     touchHint.Position = g_touchHintPos;
     touchHint.Color    = g_whiteColor;
 
+    // Cactus
+
+    cactus.Id       = g_spriteId++;
+    cactus.Scale    = { g_cactusScale, g_cactusScale };
+    cactus.TexRect  = { 1487.0f, 69.0f, 123, 11 };
+    cactus.Size     = { (float)cactus.TexRect.Width, (float)cactus.TexRect.Height };
+    cactus.Position = { 0.0f, 0.0f };
+    cactus.Color    = g_objectsColor;
+
     UpdateVertexData(dino);
     UpdateVertexData(ground);
     UpdateVertexData(crexLogo);
     UpdateVertexData(developerInfo);
     UpdateVertexData(touchHint);
+    UpdateVertexData(cactus);
 }
 
 void UpdateVertexData(const BatchedSprite& sprite)
@@ -460,8 +474,6 @@ void SetupAnimations()
     dinoDuckRun.FrameStep = 0.1f;
     dinoDuckRun.Frames.push_back({ 2211.0f, 39.0f, 110, 52 });
     dinoDuckRun.Frames.push_back({ 2329.0f, 39.0f, 110, 52 });
-
-
 }
 
 void SetDinoAboveGround()
