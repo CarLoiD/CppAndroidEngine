@@ -42,6 +42,9 @@ constexpr const float g_jumpWeight = 4750.0f;
 constexpr const float g_cloudsDistance = 400.0f;
 constexpr const float g_cloudsSpeed = 200.0f;
 constexpr const float g_fadeStep = 0.7f;
+constexpr const float g_recoverTime = 0.2f;
+constexpr const float g_dinoCollisionThreshold = 0.9f;
+
 constexpr const uint32_t g_cloudsMaxUpRange = 40;
 constexpr const uint32_t g_cloudsMaxDownRange = 400;
 constexpr const uint32_t g_whiteColor = 0xFFFFFFFF;
@@ -62,6 +65,7 @@ float g_gravity = 0.0f;
 float g_alphaTimer = 0.0f;
 float g_moveTimer = 0.0f;
 float g_dinoAnimationTimer = 0.0f;
+float g_respawnTimer = 0.0f;
 
 bool g_isJumping = false;
 bool g_isPlaying = false;
@@ -70,6 +74,7 @@ bool g_isFadingOut = true;
 bool g_isFirstMove = false;
 bool g_isDucking = false;
 bool g_isDinoDead = false;
+bool g_isRespawning = false;
 
 Texture2D g_spritesTex;
 
@@ -106,7 +111,7 @@ void SetupAnimations();
 void SetObjectAboveGround(BatchedSprite& object);
 void UpdateSpriteAnimation(BatchedSprite& sprite, const Animation& animation, float& timer, uint32_t& index);
 uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max);
-bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe);
+bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const float lheThreshold = 1.0f);
 bool CheckTouchAgainstSprite(const BatchedSprite& sprite);
 void RestartObjectsPosition();
 
@@ -180,7 +185,22 @@ void Application::Update(const float deltaTime)
     const TouchScreenId id = TouchScreenId::Touch;
     const float touchX = getTouchScreenX(id) * (float)gfxGetDisplayWidth();
 
-    if (touchX > (float)gfxGetDisplayWidth() / 2.0f && !g_isDinoDead)
+    // Update timers
+
+    g_dinoAnimationTimer += deltaTime;
+    g_alphaTimer += deltaTime;
+
+    if (g_isRespawning)
+    {
+        g_respawnTimer += deltaTime;
+
+        if (g_respawnTimer > g_recoverTime) {
+            g_respawnTimer = 0.0f;
+            g_isRespawning = false;
+        }
+    }
+
+    if (touchX > (float)gfxGetDisplayWidth() / 2.0f && !g_isDinoDead && !g_isRespawning)
     {
         if (!g_isJumping)
         {
@@ -190,7 +210,7 @@ void Application::Update(const float deltaTime)
             g_dinoAnimation = &dinoIdle;
         }
     }
-    else if (touchX > 0.0f && !g_isJumping && g_isPlaying)
+    else if (touchX > 0.0f && !g_isJumping && g_isPlaying && !g_isDinoDead && !g_isRespawning)
     {
         g_dinoAnimation = &dinoDuckRun;
         g_isDucking = true;
@@ -210,9 +230,6 @@ void Application::Update(const float deltaTime)
             g_isDucking = false;
         }
     }
-
-    g_dinoAnimationTimer += deltaTime;
-    g_alphaTimer += deltaTime;
 
     if (g_isFirstMove) {
         dino.Position.X += 50.0f * deltaTime;
@@ -307,6 +324,7 @@ void Application::Update(const float deltaTime)
         // Check collision with the left-most border
         if (actualCloud->Position.X < -(actualCloud->Size.X * actualCloud->Scale.X))
         {
+            // Randomly regenerate the Y position of the cloud
             const float cloudsRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
             actualCloud->Position = { (float)gfxGetDisplayWidth(), cloudsRangeY };
         }
@@ -314,7 +332,7 @@ void Application::Update(const float deltaTime)
         UpdateVertexData(clouds[index]);
     }
 
-    if (HasAABBCollided(dino, cactus)) {
+    if (HasAABBCollided(dino, cactus, g_dinoCollisionThreshold)) {
         g_isPlaying = false;
         g_isDinoDead = true;
     }
@@ -329,10 +347,11 @@ void Application::Update(const float deltaTime)
 
             g_isDinoDead = false;
             g_isPlaying = true;
+            g_isRespawning = true;
         }
     }
 
-    // Show game over and retry button when dino is ded :P
+    // Show game_over and retry_button when dino is ded :P
     gameOver.Position = g_isDinoDead ? g_gameOverPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f );
     retry.Position = g_isDinoDead ? g_retryButtonPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f );
 
@@ -571,11 +590,11 @@ uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max)
     return min + (rand() % max);
 }
 
-bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe)
+bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const float lheThreshold)
 {
-    const Vec2 pos1 = lhe.Position;
+    const Vec2 pos1 = lhe.Position * lheThreshold;
     const Vec2 pos2 = rhe.Position;
-    const Vec2 size1 = { lhe.Size.X * lhe.Scale.X, lhe.Size.Y * lhe.Scale.Y };
+    const Vec2 size1 = Vec2( lhe.Size.X * lhe.Scale.X, lhe.Size.Y * lhe.Scale.Y ) * lheThreshold;
     const Vec2 size2 = { rhe.Size.X * rhe.Scale.X, rhe.Size.Y * rhe.Scale.Y };
 
     if (pos1.X < pos2.X + size2.X && pos1.X + size1.X > pos2.X &&	// Horizontal check
