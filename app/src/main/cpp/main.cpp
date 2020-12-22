@@ -22,6 +22,13 @@ typedef struct {
     std::vector<Rect2D> Frames;
 } Animation;
 
+typedef struct {
+    uint32_t GlyphOffset;
+    uint32_t GlyphCount;
+    Rect2D BaseRect;
+    BatchedSprite* Glyphs;
+} BitmapText;
+
 constexpr const uint32_t g_maxSprites = 50;
 
 constexpr const float g_dinoScale = 1.5f;
@@ -33,6 +40,8 @@ constexpr const float g_touchHintScale = 3.0f;
 constexpr const float g_cactusScale = 1.5f;
 constexpr const float g_gameOverScale = 1.5f;
 constexpr const float g_retryScale = 1.5f;
+constexpr const float g_scoreScale = 1.5f;
+constexpr const float g_scoreIndicatorScale = 1.4f;
 
 constexpr const float g_dinoPosX = 100.0f;
 constexpr const float g_objectsSpeed = 900.0f;
@@ -44,6 +53,7 @@ constexpr const float g_cloudsSpeed = 200.0f;
 constexpr const float g_fadeStep = 0.7f;
 constexpr const float g_recoverTime = 0.2f;
 constexpr const float g_dinoCollisionThreshold = 0.9f;
+constexpr const float g_scoreStep = 0.1f;
 
 constexpr const uint32_t g_cloudsMaxUpRange = 40;
 constexpr const uint32_t g_cloudsMaxDownRange = 400;
@@ -53,12 +63,17 @@ constexpr const uint32_t g_maxClouds = 3;
 const Vec2 g_touchHintPos = { 470.0f, 350.0f };
 const Vec2 g_gameOverPos = { 375.0f, 280.0f };
 const Vec2 g_retryButtonPos = { 610.0f, 370.0f };
+const Vec2 g_currentScorePos = { 1000.0f, 100.0f };
+const Vec2 g_highScorePos = { 820.0f, 100.0f };
+const Vec2 g_highIndicatorPos = { 740.0f, 100.0f };
 
 uint32_t g_spriteId = 0;
 uint32_t g_clearColor = 0xFFFFFFFF;
 uint32_t g_objectsColor = 0x505050FF;
 uint32_t g_touchHintAlpha = 255;
 uint32_t g_dinoAnimationIndex = 0;
+uint32_t g_currentScore = 0;
+uint32_t g_highScore = 0;
 
 float g_objectsVelocity = 1.0f;
 float g_gravity = 0.0f;
@@ -66,6 +81,7 @@ float g_alphaTimer = 0.0f;
 float g_moveTimer = 0.0f;
 float g_dinoAnimationTimer = 0.0f;
 float g_respawnTimer = 0.0f;
+float g_scoreTimer = 0.0f;
 
 bool g_isJumping = false;
 bool g_isPlaying = false;
@@ -75,6 +91,9 @@ bool g_isFirstMove = false;
 bool g_isDucking = false;
 bool g_isDinoDead = false;
 bool g_isRespawning = false;
+
+char g_scoreBuffer[5];
+char g_highScoreBuffer[5];
 
 Texture2D g_spritesTex;
 
@@ -95,11 +114,15 @@ BatchedSprite touchHint;
 BatchedSprite cactus;
 BatchedSprite gameOver;
 BatchedSprite retry;
+BatchedSprite highIndicator;
 
 Animation dinoIdle;
 Animation dinoRun;
 Animation dinoDuckRun;
 Animation dinoDied;
+
+BitmapText currentScore;
+BitmapText highScore;
 
 Animation* g_dinoAnimation = &dinoIdle;
 
@@ -114,6 +137,12 @@ uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max);
 bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const float lheThreshold = 1.0f);
 bool CheckTouchAgainstSprite(const BatchedSprite& sprite);
 void RestartObjectsPosition();
+void Uint32ToStr(const uint32_t integer, char* buffer, const uint32_t size);
+void SetupBitmapText(BitmapText& text, const Vec2& position, const Vec2& scale, const uint32_t glyphCount, const Rect2D& base);
+void DestroyBitmapText(BitmapText& text);
+void SetBitmapTextString(BitmapText& text, const char* buffer, const uint32_t size);
+void SetBitmapTextVerticalPos(BitmapText& text, const float position);
+bool IsTheBestDayOfTheWeek();   // TODO: Jessica's Easter Egg
 
 void Application::Create()
 {
@@ -143,6 +172,13 @@ void Application::Create()
 
     SetupSprites();
     SetupAnimations();
+
+    const Vec2 currentPos = { g_currentScorePos.X, -(float)gfxGetDisplayHeight() };
+    const Vec2 highPos    = { g_highScorePos.X, -(float)gfxGetDisplayHeight() };
+    const Rect2D baseRect = { 1293.0f, 2.0f, 20, 21 };
+
+    SetupBitmapText(currentScore, currentPos, { g_scoreScale, g_scoreScale }, sizeof(g_scoreBuffer), baseRect);
+    SetupBitmapText(highScore, highPos, { g_scoreScale, g_scoreScale }, sizeof(g_highScoreBuffer), baseRect);
 
     g_spritesBuffer.Stride = sizeof(Vertex);
     g_spritesBuffer.Size   = (4 * g_maxSprites) * sizeof(Vertex);
@@ -189,6 +225,7 @@ void Application::Update(const float deltaTime)
 
     g_dinoAnimationTimer += deltaTime;
     g_alphaTimer += deltaTime;
+    g_scoreTimer += deltaTime;
 
     if (g_isRespawning)
     {
@@ -200,6 +237,7 @@ void Application::Update(const float deltaTime)
         }
     }
 
+    // Touch happens in the right half of the screen, jump
     if (touchX > (float)gfxGetDisplayWidth() / 2.0f && !g_isDinoDead && !g_isRespawning)
     {
         if (!g_isJumping)
@@ -210,6 +248,8 @@ void Application::Update(const float deltaTime)
             g_dinoAnimation = &dinoIdle;
         }
     }
+
+    // Touch happens in the left half of the screen, duck
     else if (touchX > 0.0f && !g_isJumping && g_isPlaying && !g_isDinoDead && !g_isRespawning)
     {
         g_dinoAnimation = &dinoDuckRun;
@@ -218,6 +258,8 @@ void Application::Update(const float deltaTime)
         UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
         SetObjectAboveGround(dino);
     }
+
+    // Back to normal state (running)
     else
     {
         if (g_isDucking)
@@ -230,6 +272,8 @@ void Application::Update(const float deltaTime)
             g_isDucking = false;
         }
     }
+
+    // Do that little horizontal padding after being in game (only happens once)
 
     if (g_isFirstMove) {
         dino.Position.X += 50.0f * deltaTime;
@@ -268,6 +312,18 @@ void Application::Update(const float deltaTime)
     // Animate things when playing
     if (g_isPlaying && !g_isFirstMove)
     {
+        if (g_scoreTimer > g_scoreStep)
+        {
+            if (++g_currentScore > 9999) {
+                g_currentScore = 9999;
+            }
+
+            Uint32ToStr(g_currentScore, g_scoreBuffer, sizeof(g_scoreBuffer));
+            SetBitmapTextString(currentScore, g_scoreBuffer, sizeof(g_scoreBuffer));
+
+            g_scoreTimer = 0.0f;
+        }
+
         // Scroll the ground infinitely
         ground.Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
 
@@ -294,12 +350,18 @@ void Application::Update(const float deltaTime)
             touchHint.Position     = { -(float)gfxGetDisplayWidth(), 0.0f };
             crexLogo.Position      = { -(float)gfxGetDisplayWidth(), 0.0f };
             developerInfo.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
+            highIndicator.Position = g_highIndicatorPos;
+
+            SetBitmapTextVerticalPos(currentScore, g_currentScorePos.Y);
+            SetBitmapTextVerticalPos(highScore, g_highScorePos.Y);
 
             g_isFirstMove = true;
             g_isPlaying = true;
 
             g_dinoAnimation = &dinoRun;
             g_isInPauseScreen = false;
+
+            g_scoreTimer = 0.0f;
         }
 
         if (g_isPlaying && !g_isFirstMove && !g_isDucking) {
@@ -332,14 +394,27 @@ void Application::Update(const float deltaTime)
         UpdateVertexData(clouds[index]);
     }
 
+    // Check objects collision
+
     if (HasAABBCollided(dino, cactus, g_dinoCollisionThreshold)) {
         g_isPlaying = false;
         g_isDinoDead = true;
     }
 
+    // Ded :P
+
     if (g_isDinoDead)
     {
         g_dinoAnimation = &dinoDied;
+
+        // Update high score
+        if (g_currentScore > g_highScore)
+        {
+            g_highScore = g_currentScore;
+
+            Uint32ToStr(g_highScore, g_highScoreBuffer, sizeof(g_highScoreBuffer));
+            SetBitmapTextString(highScore, g_highScoreBuffer, sizeof(g_highScoreBuffer));
+        }
 
         if (CheckTouchAgainstSprite(retry))
         {
@@ -348,12 +423,15 @@ void Application::Update(const float deltaTime)
             g_isDinoDead = false;
             g_isPlaying = true;
             g_isRespawning = true;
+
+            // Update score
+            g_currentScore = 0.0f;
         }
     }
 
     // Show game_over and retry_button when dino is ded :P
-    gameOver.Position = g_isDinoDead ? g_gameOverPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f );
-    retry.Position = g_isDinoDead ? g_retryButtonPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f );
+    gameOver.Position = g_isDinoDead ? g_gameOverPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f);
+    retry.Position = g_isDinoDead ? g_retryButtonPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f);
 
     UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
 
@@ -366,6 +444,7 @@ void Application::Update(const float deltaTime)
     UpdateVertexData(cactus);
     UpdateVertexData(gameOver);
     UpdateVertexData(retry);
+    UpdateVertexData(highIndicator);
 
     // Flush ModelViewProj and map updated dynamic buffer data
     FlushBufferData();
@@ -381,6 +460,8 @@ void Application::Destroy()
 
     gfxDestroyIndexBuffer(g_spritesIndexBuffer);
     gfxDestroyVertexBuffer(g_spritesBuffer);
+
+    DestroyBitmapText(currentScore);
 
     // After GPU unbind buffer data, make sure to deallocate the used heap memory
     delete[] g_spritesIndices;
@@ -485,6 +566,15 @@ void SetupSprites()
     retry.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
     retry.Color    = g_objectsColor;
 
+    // High Score Indicator
+
+    highIndicator.Id       = g_spriteId++;
+    highIndicator.Scale    = { g_scoreIndicatorScale, g_scoreIndicatorScale };
+    highIndicator.TexRect  = { 1494.0f, 2.0f, 38, 21 };
+    highIndicator.Size     = { (float)highIndicator.TexRect.Width, (float)highIndicator.TexRect.Height };
+    highIndicator.Position = { g_highIndicatorPos.X, -(float)gfxGetDisplayHeight() };
+    highIndicator.Color    = g_objectsColor;
+
     UpdateVertexData(dino);
     UpdateVertexData(ground);
     UpdateVertexData(crexLogo);
@@ -493,6 +583,7 @@ void SetupSprites()
     UpdateVertexData(cactus);
     UpdateVertexData(gameOver);
     UpdateVertexData(retry);
+    UpdateVertexData(highIndicator);
 }
 
 void UpdateVertexData(const BatchedSprite& sprite)
@@ -502,10 +593,15 @@ void UpdateVertexData(const BatchedSprite& sprite)
     const float texWidth  = (float)g_spritesTex.Width;
     const float texHeight = (float)g_spritesTex.Height;
 
+    // Setup position and size based on the work resolution
+    // This is a personal design for me as it stands for "uniform resolution" in 2D rendering
+
     const float posX = sprite.Position.X * workResScale.X;
     const float posY = sprite.Position.Y * workResScale.Y;
     const float posSizeX = (sprite.Position.X + sprite.Size.X * sprite.Scale.X) * workResScale.X;
     const float posSizeY = (sprite.Position.Y + sprite.Size.Y * sprite.Scale.Y) * workResScale.Y;
+
+    // Normalize texture coordinates
 
     const float texWidthX  = sprite.TexRect.X / texWidth;
     const float texHeightY = sprite.TexRect.Y / texHeight;
@@ -515,6 +611,8 @@ void UpdateVertexData(const BatchedSprite& sprite)
 
     float r, g, b, a;
     DwordToColorNormalized(sprite.Color, r, g, b, a);
+
+    // Batch vertices by id
 
     g_spritesVertices[ 4 * sprite.Id + 0 ] = { { posX    , posY    , 0.0f }, { r, g, b, a }, { texWidthX      , texHeightY       } };
     g_spritesVertices[ 4 * sprite.Id + 1 ] = { { posSizeX, posSizeY, 0.0f }, { r, g, b, a }, { texWidthOffsetX, texHeightOffsetY } };
@@ -526,6 +624,8 @@ void SetupIndexData()
 {
     for (uint32_t index = 0; index < g_maxSprites; ++index)
     {
+        // Batch indices by id
+
         g_spritesIndices[ 6 * index + 0 ] = 4 * index + 0;
         g_spritesIndices[ 6 * index + 1 ] = 4 * index + 1;
         g_spritesIndices[ 6 * index + 2 ] = 4 * index + 2;
@@ -594,8 +694,8 @@ bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const f
 {
     const Vec2 pos1 = lhe.Position * lheThreshold;
     const Vec2 pos2 = rhe.Position;
-    const Vec2 size1 = Vec2( lhe.Size.X * lhe.Scale.X, lhe.Size.Y * lhe.Scale.Y ) * lheThreshold;
-    const Vec2 size2 = { rhe.Size.X * rhe.Scale.X, rhe.Size.Y * rhe.Scale.Y };
+    const Vec2 size1 = Vec2(lhe.Size.X * lhe.Scale.X, lhe.Size.Y * lhe.Scale.Y) * lheThreshold;
+    const Vec2 size2 = Vec2(rhe.Size.X * rhe.Scale.X, rhe.Size.Y * rhe.Scale.Y);
 
     if (pos1.X < pos2.X + size2.X && pos1.X + size1.X > pos2.X &&	// Horizontal check
         pos1.Y < pos2.Y + size2.Y && pos1.Y + size1.Y > pos2.Y)		// Vertical check
@@ -633,4 +733,75 @@ void RestartObjectsPosition()
 {
     SetObjectAboveGround(dino);
     cactus.Position.X = (float)gfxGetDisplayWidth();
+}
+
+void Uint32ToStr(const uint32_t integer, char* buffer, const uint32_t size)
+{
+    // Max size of 99 char's array in this project
+    if (size > 99) {
+        return;
+    }
+
+    char format[6];
+    sprintf(format, "%s%d%s", "%0", size, "d");
+
+    sprintf(buffer, format, integer);
+}
+
+void SetupBitmapText(BitmapText& text, const Vec2& position, const Vec2& scale, const uint32_t glyphCount, const Rect2D& base)
+{
+    text.GlyphCount  = glyphCount;
+    text.GlyphOffset = base.Width;
+    text.BaseRect    = base;
+
+    text.Glyphs = new BatchedSprite[glyphCount];
+
+    for (uint32_t index = 0; index < glyphCount; ++index)
+    {
+        const Vec2 finalPos = { position.X + ((base.Width * scale.X) * index), position.Y };
+
+        text.Glyphs[index].Id       = g_spriteId++;
+        text.Glyphs[index].Position = finalPos;
+        text.Glyphs[index].TexRect  = base;
+        text.Glyphs[index].Scale    = scale;
+        text.Glyphs[index].Size     = { (float)base.Width, (float)base.Height };
+        text.Glyphs[index].Color    = g_objectsColor;
+
+        UpdateVertexData(text.Glyphs[index]);
+    }
+}
+
+void DestroyBitmapText(BitmapText& text)
+{
+    text.GlyphCount = 0;
+    text.GlyphOffset = 0;
+
+    delete[] text.Glyphs;
+}
+
+void SetBitmapTextString(BitmapText& text, const char* buffer, const uint32_t size)
+{
+    if (size > text.GlyphCount) {
+        return;
+    }
+
+    for (uint32_t index = 0; index < size; ++index)
+    {
+        int32_t number = (int32_t)buffer[index] - '0';
+
+        if (number < 0 || number > 9) {
+            continue;
+        }
+
+        text.Glyphs[index].TexRect.X = text.BaseRect.X + (number * text.GlyphOffset);
+        UpdateVertexData(text.Glyphs[index]);
+    }
+}
+
+void SetBitmapTextVerticalPos(BitmapText& text, const float position)
+{
+    for (uint32_t index = 0; index < text.GlyphCount; ++index) {
+        text.Glyphs[index].Position.Y = position;
+        UpdateVertexData(text.Glyphs[index]);
+    }
 }
