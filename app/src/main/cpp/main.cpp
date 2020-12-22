@@ -54,11 +54,19 @@ constexpr const float g_fadeStep = 0.7f;
 constexpr const float g_recoverTime = 0.2f;
 constexpr const float g_dinoCollisionThreshold = 0.9f;
 constexpr const float g_scoreStep = 0.1f;
+constexpr const float g_colorFadingDelay = 2.0f;
+
+constexpr const float g_dayTimeObjColor = (float)0x50;
+constexpr const float g_nightTimeObjColor = (float)0xFF;
+constexpr const float g_dayTimeBgColor = (float)0xFF;
+constexpr const float g_nightTimeBgColor = (float)0x00;
 
 constexpr const uint32_t g_cloudsMaxUpRange = 40;
 constexpr const uint32_t g_cloudsMaxDownRange = 400;
 constexpr const uint32_t g_whiteColor = 0xFFFFFFFF;
+constexpr const uint32_t g_greyColor = 0x505050FF;
 constexpr const uint32_t g_maxClouds = 3;
+constexpr const uint32_t g_scoreToFade = 500;
 
 const Vec2 g_touchHintPos = { 470.0f, 350.0f };
 const Vec2 g_gameOverPos = { 375.0f, 280.0f };
@@ -68,8 +76,8 @@ const Vec2 g_highScorePos = { 820.0f, 100.0f };
 const Vec2 g_highIndicatorPos = { 740.0f, 100.0f };
 
 uint32_t g_spriteId = 0;
-uint32_t g_clearColor = 0xFFFFFFFF;
-uint32_t g_objectsColor = 0x505050FF;
+uint32_t g_clearColor = g_whiteColor;
+uint32_t g_objectsColor = g_greyColor;
 uint32_t g_touchHintAlpha = 255;
 uint32_t g_dinoAnimationIndex = 0;
 uint32_t g_currentScore = 0;
@@ -82,6 +90,7 @@ float g_moveTimer = 0.0f;
 float g_dinoAnimationTimer = 0.0f;
 float g_respawnTimer = 0.0f;
 float g_scoreTimer = 0.0f;
+float g_colorFadeTimer = 0.0f;
 
 bool g_isJumping = false;
 bool g_isPlaying = false;
@@ -91,6 +100,8 @@ bool g_isFirstMove = false;
 bool g_isDucking = false;
 bool g_isDinoDead = false;
 bool g_isRespawning = false;
+bool g_isNightTime = false;
+bool g_isFadingTime = false;
 
 char g_scoreBuffer[5];
 char g_highScoreBuffer[5];
@@ -142,7 +153,9 @@ void SetupBitmapText(BitmapText& text, const Vec2& position, const Vec2& scale, 
 void DestroyBitmapText(BitmapText& text);
 void SetBitmapTextString(BitmapText& text, const char* buffer, const uint32_t size);
 void SetBitmapTextVerticalPos(BitmapText& text, const float position);
-bool IsTheBestDayOfTheWeek();   // TODO: Jessica's Easter Egg
+void SetBitmapTextVerticalColor(BitmapText& text, const uint32_t color);
+float Lerp(const float lhe, const float rhe, const float delta);
+bool IsTheBestDayOfTheWeek();   // Jessica's Easter Egg
 
 void Application::Create()
 {
@@ -226,6 +239,7 @@ void Application::Update(const float deltaTime)
     g_dinoAnimationTimer += deltaTime;
     g_alphaTimer += deltaTime;
     g_scoreTimer += deltaTime;
+    g_colorFadeTimer = g_isFadingTime ? g_colorFadeTimer + deltaTime : 0.0f;
 
     if (g_isRespawning)
     {
@@ -310,18 +324,56 @@ void Application::Update(const float deltaTime)
     }
 
     // Animate things when playing
+
     if (g_isPlaying && !g_isFirstMove)
     {
         if (g_scoreTimer > g_scoreStep)
         {
-            if (++g_currentScore > 9999) {
-                g_currentScore = 9999;
+            if (++g_currentScore > 99999) {
+                g_currentScore = 99999;
             }
 
             Uint32ToStr(g_currentScore, g_scoreBuffer, sizeof(g_scoreBuffer));
             SetBitmapTextString(currentScore, g_scoreBuffer, sizeof(g_scoreBuffer));
 
             g_scoreTimer = 0.0f;
+        }
+
+        // Process the time fading
+
+        if (g_isFadingTime)
+        {
+            if (g_colorFadeTimer < g_colorFadingDelay)
+            {
+                // Normalize the difference
+                const float delta = (g_colorFadingDelay - g_colorFadeTimer) / g_colorFadingDelay;
+
+                // Object color
+                const float toObjColor = g_isNightTime ? g_nightTimeObjColor : g_dayTimeObjColor;
+                const float fromObjColor = g_isNightTime ? g_dayTimeObjColor : g_nightTimeObjColor;
+
+                const float objColor = Lerp(toObjColor, fromObjColor, delta);
+                ColorToDword(objColor, objColor, objColor, 0xFF, g_objectsColor);
+
+                // Background color
+                const float toBgColor = g_isNightTime ? g_nightTimeBgColor : g_dayTimeBgColor;
+                const float fromBgColor = g_isNightTime ? g_dayTimeBgColor : g_nightTimeBgColor;
+
+                const float bgColor = Lerp(toBgColor, fromBgColor, delta);
+                ColorToDword(bgColor, bgColor, bgColor, 0xFF, g_clearColor);
+            }
+
+            else {
+                g_isFadingTime = false;
+            }
+        }
+
+        if (g_currentScore % g_scoreToFade == 0)
+        {
+            if (!g_isFadingTime) {
+                g_isNightTime = !g_isNightTime;
+                g_isFadingTime = true;
+            }
         }
 
         // Scroll the ground infinitely
@@ -331,7 +383,7 @@ void Application::Update(const float deltaTime)
         for (uint32_t index = 0; index < g_maxClouds; ++index)
         {
             // Move
-            BatchedSprite *actualCloud = &clouds[index];
+            BatchedSprite* actualCloud = &clouds[index];
             actualCloud->Position.X -= g_cloudsSpeed * deltaTime;
         }
 
@@ -434,6 +486,18 @@ void Application::Update(const float deltaTime)
     retry.Position = g_isDinoDead ? g_retryButtonPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f);
 
     UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
+
+    // Update object colors
+
+    dino.Color = g_objectsColor;
+    ground.Color = g_objectsColor;
+    cactus.Color = g_objectsColor;
+    gameOver.Color = g_objectsColor;
+    retry.Color = g_objectsColor;
+    highIndicator.Color = g_objectsColor;
+
+    SetBitmapTextVerticalColor(currentScore, g_objectsColor);
+    SetBitmapTextVerticalColor(highScore, g_objectsColor);
 
     // Update dynamic buffer data changes
     UpdateVertexData(touchHint);
@@ -804,4 +868,17 @@ void SetBitmapTextVerticalPos(BitmapText& text, const float position)
         text.Glyphs[index].Position.Y = position;
         UpdateVertexData(text.Glyphs[index]);
     }
+}
+
+void SetBitmapTextVerticalColor(BitmapText& text, const uint32_t color)
+{
+    for (uint32_t index = 0; index < text.GlyphCount; ++index) {
+        text.Glyphs[index].Color = color;
+        UpdateVertexData(text.Glyphs[index]);
+    }
+}
+
+float Lerp(const float lhe, const float rhe, const float delta)
+{
+    return (1.0f - delta) * lhe + delta * rhe;
 }
