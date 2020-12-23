@@ -66,6 +66,7 @@ constexpr const uint32_t g_cloudsMaxDownRange = 400;
 constexpr const uint32_t g_whiteColor = 0xFFFFFFFF;
 constexpr const uint32_t g_greyColor = 0x505050FF;
 constexpr const uint32_t g_maxClouds = 3;
+constexpr const uint32_t g_maxCactus = 4;
 constexpr const uint32_t g_scoreToFade = 500;
 
 const Vec2 g_touchHintPos = { 470.0f, 350.0f };
@@ -74,6 +75,14 @@ const Vec2 g_retryButtonPos = { 610.0f, 370.0f };
 const Vec2 g_currentScorePos = { 1000.0f, 100.0f };
 const Vec2 g_highScorePos = { 820.0f, 100.0f };
 const Vec2 g_highIndicatorPos = { 740.0f, 100.0f };
+
+const Rect2D g_cactusRect[] = {
+    { 447.0f, 3.0f, 30, 66 },   // Single small cactus
+    { 482.0f, 3.0f, 64, 66 },   // Double small cactus
+    { 654.0f, 3.0f, 46, 96 },   // Single big cactus
+    { 654.0f, 3.0f, 94, 96 },   // Double big cactus
+    { 654.0f, 3.0f,146, 96 },   // Triple big cactus
+};
 
 uint32_t g_spriteId = 0;
 uint32_t g_clearColor = g_whiteColor;
@@ -91,6 +100,7 @@ float g_dinoAnimationTimer = 0.0f;
 float g_respawnTimer = 0.0f;
 float g_scoreTimer = 0.0f;
 float g_colorFadeTimer = 0.0f;
+float g_jumpInfluence = 1.0f;
 
 bool g_isJumping = false;
 bool g_isPlaying = false;
@@ -122,7 +132,7 @@ BatchedSprite clouds[g_maxClouds];
 BatchedSprite crexLogo;
 BatchedSprite developerInfo;
 BatchedSprite touchHint;
-BatchedSprite cactus;
+BatchedSprite cactus[g_maxCactus];
 BatchedSprite gameOver;
 BatchedSprite retry;
 BatchedSprite highIndicator;
@@ -241,6 +251,8 @@ void Application::Update(const float deltaTime)
     g_scoreTimer += deltaTime;
     g_colorFadeTimer = g_isFadingTime ? g_colorFadeTimer + deltaTime : 0.0f;
 
+    UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
+
     if (g_isRespawning)
     {
         g_respawnTimer += deltaTime;
@@ -264,13 +276,18 @@ void Application::Update(const float deltaTime)
     }
 
     // Touch happens in the left half of the screen, duck
-    else if (touchX > 0.0f && !g_isJumping && g_isPlaying && !g_isDinoDead && !g_isRespawning)
+    else if (touchX > 0.0f && g_isPlaying && !g_isDinoDead && !g_isRespawning)
     {
-        g_dinoAnimation = &dinoDuckRun;
-        g_isDucking = true;
+        if (!g_isJumping)
+        {
+            g_dinoAnimation = &dinoDuckRun;
+            g_isDucking = true;
 
-        UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
-        SetObjectAboveGround(dino);
+            UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
+            SetObjectAboveGround(dino);
+        } else {
+            g_jumpInfluence = 3.0f;
+        }
     }
 
     // Back to normal state (running)
@@ -279,10 +296,6 @@ void Application::Update(const float deltaTime)
         if (g_isDucking)
         {
             g_dinoAnimation = &dinoRun;
-
-            UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
-            SetObjectAboveGround(dino);
-
             g_isDucking = false;
         }
     }
@@ -315,7 +328,7 @@ void Application::Update(const float deltaTime)
     }
 
     // Update the jump motion
-    g_gravity += g_jumpWeight * deltaTime;
+    g_gravity += g_jumpWeight * g_jumpInfluence * deltaTime;
     ClampMax(g_gravity, g_maxGravity);
 
     // Apply the force
@@ -327,8 +340,14 @@ void Application::Update(const float deltaTime)
 
     if (g_isPlaying && !g_isFirstMove)
     {
+        if (g_isJumping) {
+            g_dinoAnimation = &dinoIdle;
+        }
+
         if (g_scoreTimer > g_scoreStep)
         {
+            g_objectsVelocity += 0.001f;
+
             if (++g_currentScore > 99999) {
                 g_currentScore = 99999;
             }
@@ -388,12 +407,15 @@ void Application::Update(const float deltaTime)
         }
 
         // Scroll the cactus
-        cactus.Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
+        for (uint32_t index = 0; index < g_maxCactus; ++index) {
+            cactus[index].Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
+        }
     }
 
     // Check ground collision
     if (dino.Position.Y + (dino.Size.Y * dino.Scale.Y) > ground.Position.Y + (ground.Size.Y * ground.Scale.Y))
     {
+        g_jumpInfluence = 1.0f;
         SetObjectAboveGround(dino);
 
         if (!g_isPlaying && g_isJumping)
@@ -423,10 +445,6 @@ void Application::Update(const float deltaTime)
         g_isJumping = false;
     }
 
-    if (cactus.Position.X < -(cactus.Size.X * cactus.Size.X)) {
-        cactus.Position.X = (float)gfxGetDisplayWidth();
-    }
-
     if (ground.Position.X < -((ground.Size.X * ground.Scale.X) / 2.0f)) {
         ground.Position.X = 0.0f;
     }
@@ -448,9 +466,27 @@ void Application::Update(const float deltaTime)
 
     // Check objects collision
 
-    if (HasAABBCollided(dino, cactus, g_dinoCollisionThreshold)) {
-        g_isPlaying = false;
-        g_isDinoDead = true;
+    for (uint32_t index = 0; index < g_maxCactus; ++index)
+    {
+        if (cactus[index].Position.X < -(cactus[index].Size.X * cactus[index].Scale.X))
+        {
+            const uint32_t cactusRect = GenerateRandomNumRange(0, 4);
+            const float offset = 0.1f * GenerateRandomNumRange(7, 11);
+
+            cactus[index].TexRect    = g_cactusRect[cactusRect];
+            cactus[index].Size       = { (float)cactus[index].TexRect.Width, (float)cactus[index].TexRect.Height };
+            cactus[index].Position.X = ((float)gfxGetDisplayWidth() + 200.0f) * g_maxCactus;// * offset;
+
+            SetObjectAboveGround(cactus[index]);
+        }
+
+        if (HasAABBCollided(dino, cactus[index], g_dinoCollisionThreshold)) {
+            g_isPlaying = false;
+            g_isDinoDead = true;
+        }
+
+        cactus[index].Color = g_objectsColor;
+        UpdateVertexData(cactus[index]);
     }
 
     // Ded :P
@@ -478,6 +514,17 @@ void Application::Update(const float deltaTime)
 
             // Update score
             g_currentScore = 0.0f;
+
+            // Force daytime
+            const uint32_t objColor = (uint32_t)g_dayTimeObjColor;
+            ColorToDword(objColor, objColor, objColor, 0xFF, g_objectsColor);
+
+            const uint32_t bgColor = (uint32_t)g_dayTimeBgColor;
+            ColorToDword(bgColor, bgColor, bgColor, 0xFF, g_clearColor);
+
+            g_isNightTime = false;
+
+            g_objectsVelocity = 1.0f;
         }
     }
 
@@ -485,13 +532,10 @@ void Application::Update(const float deltaTime)
     gameOver.Position = g_isDinoDead ? g_gameOverPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f);
     retry.Position = g_isDinoDead ? g_retryButtonPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f);
 
-    UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
-
     // Update object colors
 
     dino.Color = g_objectsColor;
     ground.Color = g_objectsColor;
-    cactus.Color = g_objectsColor;
     gameOver.Color = g_objectsColor;
     retry.Color = g_objectsColor;
     highIndicator.Color = g_objectsColor;
@@ -505,7 +549,6 @@ void Application::Update(const float deltaTime)
     UpdateVertexData(ground);
     UpdateVertexData(crexLogo);
     UpdateVertexData(developerInfo);
-    UpdateVertexData(cactus);
     UpdateVertexData(gameOver);
     UpdateVertexData(retry);
     UpdateVertexData(highIndicator);
@@ -534,6 +577,22 @@ void Application::Destroy()
 
 void SetupSprites()
 {
+    // Clouds
+
+    for (uint32_t index = 0; index < g_maxClouds; ++index)
+    {
+        const float maxCloudRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
+
+        clouds[index].Id       = g_spriteId++;
+        clouds[index].Scale    = { g_cloudsScale, g_cloudsScale };
+        clouds[index].TexRect  = { 166.0f, 0.0f, 92, 29 };
+        clouds[index].Size     = { (float)clouds[index].TexRect.Width, (float)clouds[0].TexRect.Height };
+        clouds[index].Position = { (float)gfxGetDisplayWidth() + (index * g_cloudsDistance), maxCloudRangeY };
+        clouds[index].Color    = g_objectsColor;
+
+        UpdateVertexData(clouds[index]);
+    }
+
     // Dino
 
     dino.Id       = g_spriteId++;
@@ -553,22 +612,6 @@ void SetupSprites()
     ground.Color    = g_objectsColor;
 
     SetObjectAboveGround(dino);
-
-    // Clouds
-
-    for (uint32_t index = 0; index < g_maxClouds; ++index)
-    {
-        const float maxCloudRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
-
-        clouds[index].Id       = g_spriteId++;
-        clouds[index].Scale    = { g_cloudsScale, g_cloudsScale };
-        clouds[index].TexRect  = { 166.0f, 0.0f, 92, 29 };
-        clouds[index].Size     = { (float)clouds[index].TexRect.Width, (float)clouds[0].TexRect.Height };
-        clouds[index].Position = { (float)gfxGetDisplayWidth() + (index * g_cloudsDistance), maxCloudRangeY };
-        clouds[index].Color    = g_objectsColor;
-
-        UpdateVertexData(clouds[index]);
-    }
 
     // C-Rex Logo
 
@@ -603,14 +646,21 @@ void SetupSprites()
 
     // Cactus
 
-    cactus.Id       = g_spriteId++;
-    cactus.Scale    = { g_cactusScale, g_cactusScale };
-    cactus.TexRect  = { 447.0f, 3.0f, 30, 66 };
-    cactus.Size     = { (float)cactus.TexRect.Width, (float)cactus.TexRect.Height };
-    cactus.Position = { (float)gfxGetDisplayWidth(), 0.0f };
-    cactus.Color    = g_objectsColor;
+    for (uint32_t index = 0; index < g_maxCactus; ++index)
+    {
+        const uint32_t cactusRect = GenerateRandomNumRange(0, 4);
+        const float offset = 0.1f * GenerateRandomNumRange(7, 11);
 
-    SetObjectAboveGround(cactus);
+        cactus[index].Id       = g_spriteId++;
+        cactus[index].Scale    = { g_cactusScale, g_cactusScale };
+        cactus[index].TexRect  = g_cactusRect[cactusRect];
+        cactus[index].Size     = { (float)cactus[index].TexRect.Width, (float)cactus[index].TexRect.Height };
+        cactus[index].Position = { ((float)gfxGetDisplayWidth() + 200.0f) * (index + 1), 0.0f };
+        cactus[index].Color    = g_objectsColor;
+
+        SetObjectAboveGround(cactus[index]);
+        UpdateVertexData(cactus[index]);
+    }
 
     // Game Over
 
@@ -644,7 +694,6 @@ void SetupSprites()
     UpdateVertexData(crexLogo);
     UpdateVertexData(developerInfo);
     UpdateVertexData(touchHint);
-    UpdateVertexData(cactus);
     UpdateVertexData(gameOver);
     UpdateVertexData(retry);
     UpdateVertexData(highIndicator);
@@ -796,7 +845,12 @@ bool CheckTouchAgainstSprite(const BatchedSprite& sprite)
 void RestartObjectsPosition()
 {
     SetObjectAboveGround(dino);
-    cactus.Position.X = (float)gfxGetDisplayWidth();
+
+    for (uint32_t index = 0; index < g_maxCactus; ++index)
+    {
+        const float offset = 0.1f * GenerateRandomNumRange(7, 11);
+        cactus[index].Position.X = ((float)gfxGetDisplayWidth() + 200.0f) * (index + 1);// * offset;
+    }
 }
 
 void Uint32ToStr(const uint32_t integer, char* buffer, const uint32_t size)
