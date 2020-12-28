@@ -29,20 +29,22 @@ typedef struct {
     BatchedSprite* Glyphs;
 } BitmapText;
 
+// Engine settings
 constexpr const uint32_t g_maxSprites = 50;
+const Vec2 g_gameWorkRes = { 1280.0f, 720.0f };
 
-constexpr const float g_dinoScale = 1.5f;
-constexpr const float g_groundScale = 1.5f;
-constexpr const float g_cloudsScale = 1.5f;
+// Buffer measures
+constexpr const uint32_t g_vertexBufferSize = 4 * g_maxSprites * sizeof(Vertex);
+constexpr const uint32_t g_indexBufferSize = 6 * g_maxSprites * sizeof(uint16_t);
+
+// Sprite scale
+constexpr const float g_commonScale = 1.5f;
 constexpr const float g_crexLogoScale = 4.0f;
 constexpr const float g_developerInfoScale = 1.8f;
 constexpr const float g_touchHintScale = 3.0f;
-constexpr const float g_cactusScale = 1.5f;
-constexpr const float g_gameOverScale = 1.5f;
-constexpr const float g_retryScale = 1.5f;
-constexpr const float g_scoreScale = 1.5f;
-constexpr const float g_scoreIndicatorScale = 1.4f;
 
+constexpr const float g_scoreIndicatorScale = 1.4f;
+// Float constants
 constexpr const float g_dinoPosX = 100.0f;
 constexpr const float g_objectsSpeed = 900.0f;
 constexpr const float g_maxGravity = 1500.0f;
@@ -56,25 +58,29 @@ constexpr const float g_dinoCollisionThreshold = 0.9f;
 constexpr const float g_scoreStep = 0.1f;
 constexpr const float g_colorFadingDelay = 2.0f;
 
+// Float color constants
 constexpr const float g_dayTimeObjColor = (float)0x50;
 constexpr const float g_nightTimeObjColor = (float)0xFF;
 constexpr const float g_dayTimeBgColor = (float)0xFF;
 constexpr const float g_nightTimeBgColor = (float)0x00;
 
+// Unsigned integer constants
 constexpr const uint32_t g_cloudsMaxUpRange = 40;
 constexpr const uint32_t g_cloudsMaxDownRange = 400;
 constexpr const uint32_t g_whiteColor = 0xFFFFFFFF;
 constexpr const uint32_t g_greyColor = 0x505050FF;
 constexpr const uint32_t g_maxClouds = 3;
 constexpr const uint32_t g_maxCactus = 4;
-constexpr const uint32_t g_scoreToFade = 500;
+constexpr const uint32_t g_scoreToFade = 100;
 
+// Vec2 constants
 const Vec2 g_touchHintPos = { 470.0f, 350.0f };
 const Vec2 g_gameOverPos = { 375.0f, 280.0f };
 const Vec2 g_retryButtonPos = { 610.0f, 370.0f };
 const Vec2 g_currentScorePos = { 1000.0f, 100.0f };
 const Vec2 g_highScorePos = { 820.0f, 100.0f };
 const Vec2 g_highIndicatorPos = { 740.0f, 100.0f };
+const Vec2 g_moonPos = { 800.0f, 190.0f };
 
 const Rect2D g_cactusRect[] = {
     { 447.0f, 3.0f, 30, 66 },   // Single small cactus
@@ -89,6 +95,7 @@ uint32_t g_clearColor = g_whiteColor;
 uint32_t g_objectsColor = g_greyColor;
 uint32_t g_touchHintAlpha = 255;
 uint32_t g_dinoAnimationIndex = 0;
+uint32_t g_pteroAnimationIndex = 0;
 uint32_t g_currentScore = 0;
 uint32_t g_highScore = 0;
 
@@ -97,6 +104,7 @@ float g_gravity = 0.0f;
 float g_alphaTimer = 0.0f;
 float g_moveTimer = 0.0f;
 float g_dinoAnimationTimer = 0.0f;
+float g_pteroAnimationTimer = 0.0f;
 float g_respawnTimer = 0.0f;
 float g_scoreTimer = 0.0f;
 float g_colorFadeTimer = 0.0f;
@@ -124,7 +132,7 @@ IndexBuffer g_spritesIndexBuffer;
 Vertex* g_spritesVertices;
 uint16_t* g_spritesIndices;
 
-const uint32_t nIndices = ((6 * g_maxSprites) * sizeof(uint16_t)) / sizeof(uint16_t);
+const uint32_t nIndices = g_indexBufferSize / sizeof(uint16_t);
 
 BatchedSprite dino;
 BatchedSprite ground;
@@ -136,16 +144,21 @@ BatchedSprite cactus[g_maxCactus];
 BatchedSprite gameOver;
 BatchedSprite retry;
 BatchedSprite highIndicator;
+BatchedSprite moon;
+BatchedSprite pterodactyl;
 
 Animation dinoIdle;
 Animation dinoRun;
 Animation dinoDuckRun;
 Animation dinoDied;
 
+Animation pterodactylAnim;
+
 BitmapText currentScore;
 BitmapText highScore;
 
 Animation* g_dinoAnimation = &dinoIdle;
+Animation* g_pteroAnimation = &pterodactylAnim;
 
 void SetupSprites();
 void UpdateVertexData(const BatchedSprite& sprite);
@@ -176,10 +189,10 @@ void Application::Create()
     g_spritesIndices = new uint16_t[6 * g_maxSprites];
 
     // Clear the buffer data
-    memset(g_spritesVertices, 0, (4 * g_maxSprites) * sizeof(Vertex));
-    memset(g_spritesIndices, 0, (6 * g_maxSprites) * sizeof(uint16_t));
+    memset(g_spritesVertices, 0, g_vertexBufferSize);
+    memset(g_spritesIndices, 0, g_indexBufferSize);
 
-    gfxSetWorkResolution({ 1280.0f, 720.0f });  // 720p as default work resolution
+    gfxSetWorkResolution(g_gameWorkRes);  // 720p as default work resolution
 
     Shader vertexShader;
     Shader pixelShader;
@@ -200,11 +213,11 @@ void Application::Create()
     const Vec2 highPos    = { g_highScorePos.X, -(float)gfxGetDisplayHeight() };
     const Rect2D baseRect = { 1293.0f, 2.0f, 20, 21 };
 
-    SetupBitmapText(currentScore, currentPos, { g_scoreScale, g_scoreScale }, sizeof(g_scoreBuffer), baseRect);
-    SetupBitmapText(highScore, highPos, { g_scoreScale, g_scoreScale }, sizeof(g_highScoreBuffer), baseRect);
+    SetupBitmapText(currentScore, currentPos, { g_commonScale }, sizeof(g_scoreBuffer), baseRect);
+    SetupBitmapText(highScore, highPos, { g_commonScale }, sizeof(g_highScoreBuffer), baseRect);
 
     g_spritesBuffer.Stride = sizeof(Vertex);
-    g_spritesBuffer.Size   = (4 * g_maxSprites) * sizeof(Vertex);
+    g_spritesBuffer.Size   = g_vertexBufferSize;
     g_spritesBuffer.Data   = (void*)g_spritesVertices;
 
     const VertexElement layout[] = {
@@ -220,7 +233,7 @@ void Application::Create()
     SetupIndexData();
     
     g_spritesIndexBuffer.Stride = sizeof(uint16_t);
-    g_spritesIndexBuffer.Size   = (6 * g_maxSprites) * sizeof(uint16_t);
+    g_spritesIndexBuffer.Size   = g_indexBufferSize;
     g_spritesIndexBuffer.Data   = (void*)g_spritesIndices;
 
     gfxCreateIndexBuffer(g_spritesIndexBuffer);
@@ -247,11 +260,21 @@ void Application::Update(const float deltaTime)
     // Update timers
 
     g_dinoAnimationTimer += deltaTime;
+    g_pteroAnimationTimer += deltaTime;
     g_alphaTimer += deltaTime;
     g_scoreTimer += deltaTime;
     g_colorFadeTimer = g_isFadingTime ? g_colorFadeTimer + deltaTime : 0.0f;
 
     UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
+
+    SetBitmapTextVerticalPos(currentScore, g_currentScorePos.Y);
+    SetBitmapTextVerticalPos(highScore, g_highScorePos.Y);
+
+    Uint32ToStr(gfxGetDisplayWidth(), g_highScoreBuffer, sizeof(g_highScoreBuffer));
+    SetBitmapTextString(highScore, g_highScoreBuffer, sizeof(g_highScoreBuffer));
+
+    Uint32ToStr(gfxGetDisplayHeight(), g_scoreBuffer, sizeof(g_scoreBuffer));
+    SetBitmapTextString(currentScore, g_scoreBuffer, sizeof(g_scoreBuffer));
 
     if (g_isRespawning)
     {
@@ -340,6 +363,8 @@ void Application::Update(const float deltaTime)
 
     if (g_isPlaying && !g_isFirstMove)
     {
+        UpdateSpriteAnimation(pterodactyl, *g_pteroAnimation, g_pteroAnimationTimer, g_pteroAnimationIndex);
+
         if (g_isJumping) {
             g_dinoAnimation = &dinoIdle;
         }
@@ -489,6 +514,11 @@ void Application::Update(const float deltaTime)
         UpdateVertexData(cactus[index]);
     }
 
+    if (HasAABBCollided(dino, pterodactyl, g_dinoCollisionThreshold)) {
+        g_isPlaying = false;
+        g_isDinoDead = true;
+    }
+
     // Ded :P
 
     if (g_isDinoDead)
@@ -552,6 +582,8 @@ void Application::Update(const float deltaTime)
     UpdateVertexData(gameOver);
     UpdateVertexData(retry);
     UpdateVertexData(highIndicator);
+    UpdateVertexData(moon);
+    UpdateVertexData(pterodactyl);
 
     // Flush ModelViewProj and map updated dynamic buffer data
     FlushBufferData();
@@ -577,6 +609,15 @@ void Application::Destroy()
 
 void SetupSprites()
 {
+    // Moon
+
+    moon.Id       = g_spriteId++;
+    moon.Scale    = { g_commonScale };
+    moon.TexRect  = { 1154.0f, 2.0f, 40, 80 };
+    moon.Size     = { (float)moon.TexRect.Width, (float)moon.TexRect.Height };
+    moon.Position = g_moonPos;
+    moon.Color    = g_whiteColor;
+
     // Clouds
 
     for (uint32_t index = 0; index < g_maxClouds; ++index)
@@ -584,7 +625,7 @@ void SetupSprites()
         const float maxCloudRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
 
         clouds[index].Id       = g_spriteId++;
-        clouds[index].Scale    = { g_cloudsScale, g_cloudsScale };
+        clouds[index].Scale    = { g_commonScale };
         clouds[index].TexRect  = { 166.0f, 0.0f, 92, 29 };
         clouds[index].Size     = { (float)clouds[index].TexRect.Width, (float)clouds[0].TexRect.Height };
         clouds[index].Position = { (float)gfxGetDisplayWidth() + (index * g_cloudsDistance), maxCloudRangeY };
@@ -596,7 +637,7 @@ void SetupSprites()
     // Dino
 
     dino.Id       = g_spriteId++;
-    dino.Scale    = { g_dinoScale, g_dinoScale };
+    dino.Scale    = { g_commonScale };
     dino.TexRect  = { 1680.0f, 4.0f, 81, 92 };
     dino.Size     = { (float)dino.TexRect.Width, (float)dino.TexRect.Height };
     dino.Color    = g_objectsColor;
@@ -605,7 +646,7 @@ void SetupSprites()
     // Ground
 
     ground.Id       = g_spriteId++;
-    ground.Scale    = { g_groundScale, g_groundScale };
+    ground.Scale    = { g_commonScale };
     ground.TexRect  = { 0.0f, 103.0f, 2446 * 2, 26 };
     ground.Size     = { (float)ground.TexRect.Width, (float)ground.TexRect.Height };
     ground.Position = { 0.0f, (float)gfxGetDisplayHeight() - (ground.Size.Y * ground.Scale.Y) - 50.0f };
@@ -619,7 +660,7 @@ void SetupSprites()
     crexLogo.Scale    = { g_crexLogoScale, g_crexLogoScale };
     crexLogo.TexRect  = { 1293.0f, 58.0f, 178, 25 };
     crexLogo.Size     = { (float)crexLogo.TexRect.Width, (float)crexLogo.TexRect.Height };
-    crexLogo.Position = { 295.0f, 100.0f };
+    crexLogo.Position = { -(float)gfxGetDisplayWidth(), 0.0f};//295.0f, 100.0f };
     crexLogo.Color    = g_whiteColor;
 
     // Developer Info
@@ -652,7 +693,7 @@ void SetupSprites()
         const float offset = 0.1f * GenerateRandomNumRange(7, 11);
 
         cactus[index].Id       = g_spriteId++;
-        cactus[index].Scale    = { g_cactusScale, g_cactusScale };
+        cactus[index].Scale    = { g_commonScale };
         cactus[index].TexRect  = g_cactusRect[cactusRect];
         cactus[index].Size     = { (float)cactus[index].TexRect.Width, (float)cactus[index].TexRect.Height };
         cactus[index].Position = { ((float)gfxGetDisplayWidth() + 200.0f) * (index + 1), 0.0f };
@@ -665,7 +706,7 @@ void SetupSprites()
     // Game Over
 
     gameOver.Id       = g_spriteId++;
-    gameOver.Scale    = { g_gameOverScale, g_gameOverScale };
+    gameOver.Scale    = { g_commonScale };
     gameOver.TexRect  = { 1293.0f, 28.0f, 381, 21 };
     gameOver.Size     = { (float)gameOver.TexRect.Width, (float)gameOver.TexRect.Height };
     gameOver.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
@@ -674,7 +715,7 @@ void SetupSprites()
     // Retry button
 
     retry.Id       = g_spriteId++;
-    retry.Scale    = { g_retryScale, g_retryScale };
+    retry.Scale    = { g_commonScale };
     retry.TexRect  = { 3.0f, 3.0f, 68, 60 };
     retry.Size     = { (float)retry.TexRect.Width, (float)retry.TexRect.Height };
     retry.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
@@ -683,11 +724,20 @@ void SetupSprites()
     // High Score Indicator
 
     highIndicator.Id       = g_spriteId++;
-    highIndicator.Scale    = { g_scoreIndicatorScale, g_scoreIndicatorScale };
+    highIndicator.Scale    = { g_scoreIndicatorScale };
     highIndicator.TexRect  = { 1494.0f, 2.0f, 38, 21 };
     highIndicator.Size     = { (float)highIndicator.TexRect.Width, (float)highIndicator.TexRect.Height };
     highIndicator.Position = { g_highIndicatorPos.X, -(float)gfxGetDisplayHeight() };
     highIndicator.Color    = g_objectsColor;
+
+    // High Score Indicator
+
+    pterodactyl.Id       = g_spriteId++;
+    pterodactyl.Scale    = { g_commonScale };
+    pterodactyl.TexRect  = { 264.0f, 6.0f, 84, 72 };
+    pterodactyl.Size     = { (float)pterodactyl.TexRect.Width, (float)pterodactyl.TexRect.Height };
+    pterodactyl.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
+    pterodactyl.Color    = g_objectsColor;
 
     UpdateVertexData(dino);
     UpdateVertexData(ground);
@@ -697,6 +747,8 @@ void SetupSprites()
     UpdateVertexData(gameOver);
     UpdateVertexData(retry);
     UpdateVertexData(highIndicator);
+    UpdateVertexData(moon);
+    UpdateVertexData(pterodactyl);
 }
 
 void UpdateVertexData(const BatchedSprite& sprite)
@@ -750,7 +802,7 @@ void SetupIndexData()
 
 void FlushBufferData()
 {
-    gfxUpdateVertexBuffer(g_spritesVertices, (4 * g_maxSprites) * sizeof(Vertex), g_spritesBuffer);
+    gfxUpdateVertexBuffer(g_spritesVertices, g_vertexBufferSize, g_spritesBuffer);
 }
 
 void SetupAnimations()
@@ -772,6 +824,11 @@ void SetupAnimations()
     // C-Rex Dead
     dinoDied.FrameStep = 1.0f;
     dinoDied.Frames.push_back({ 2033.0f, 5.0f, 80, 86 });
+
+    // Pterodactyl default
+    pterodactylAnim.FrameStep = 0.1f;
+    pterodactylAnim.Frames.push_back({ 264.0f, 6.0f, 84, 72 });
+    pterodactylAnim.Frames.push_back({ 356.0f, 6.0f, 84, 72 });
 }
 
 void SetObjectAboveGround(BatchedSprite& object)

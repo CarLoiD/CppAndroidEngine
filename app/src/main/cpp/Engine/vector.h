@@ -33,6 +33,14 @@ public:
     }
 
     //////////////////////////////////////
+    /// Vector2(scalar constructor)
+
+    inline Vec2(const float scalar)
+    {
+        this->Set(scalar, scalar);
+    }
+
+    //////////////////////////////////////
     /// Set
 
     inline void Set(const float x, const float y)
@@ -212,6 +220,14 @@ public:
     inline Vec3(const float x, const float y, const float z)
     {
         Set(x, y, z);
+    }
+
+    //////////////////////////////////////
+    /// Vector3(scalar constructor)
+
+    inline Vec3(const float scalar)
+    {
+        Set(scalar, scalar, scalar);
     }
 
     //////////////////////////////////////

@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
         final Display tmpDisplay = getWindowManager().getDefaultDisplay();
 
         Point tmpSize = new Point();
-        tmpDisplay.getSize(tmpSize);
+        tmpDisplay.getRealSize(tmpSize);
 
         EngineGLSurfaceView mSurfaceView = new EngineGLSurfaceView(this, tmpSize.x, tmpSize.y);
         setContentView(mSurfaceView);
