@@ -311,7 +311,6 @@ inline void gfxBindTexture2D(const Texture2D& texture)
 inline void gfxSetWorkResolution(const Vec2& workRes)
 {
     g_workRes = workRes;
-    glViewport(0, 0, (uint32_t)workRes.X, (uint32_t)workRes.Y);
 }
 
 inline Vec2 gfxGetWorkResolution()

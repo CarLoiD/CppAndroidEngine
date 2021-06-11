@@ -168,7 +168,7 @@ void SetupAnimations();
 void SetObjectAboveGround(BatchedSprite& object);
 void UpdateSpriteAnimation(BatchedSprite& sprite, const Animation& animation, float& timer, uint32_t& index);
 uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max);
-bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const float lheThreshold = 1.0f);
+bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const Vec2 lheRectThreshold = { 1.0f }, const Vec2 rheRectThreshold = { 1.0f });
 bool CheckTouchAgainstSprite(const BatchedSprite& sprite);
 void RestartObjectsPosition();
 void Uint32ToStr(const uint32_t integer, char* buffer, const uint32_t size);
@@ -193,6 +193,7 @@ void Application::Create()
     memset(g_spritesIndices, 0, g_indexBufferSize);
 
     gfxSetWorkResolution(g_gameWorkRes);  // 720p as default work resolution
+    glViewport(0, 0, gfxGetDisplayWidth(), gfxGetDisplayHeight());
 
     Shader vertexShader;
     Shader pixelShader;
@@ -209,8 +210,8 @@ void Application::Create()
     SetupSprites();
     SetupAnimations();
 
-    const Vec2 currentPos = { g_currentScorePos.X, -(float)gfxGetDisplayHeight() };
-    const Vec2 highPos    = { g_highScorePos.X, -(float)gfxGetDisplayHeight() };
+    const Vec2 currentPos = { g_currentScorePos.X, -g_gameWorkRes.Y };
+    const Vec2 highPos    = { g_highScorePos.X, -g_gameWorkRes.Y };
     const Rect2D baseRect = { 1293.0f, 2.0f, 20, 21 };
 
     SetupBitmapText(currentScore, currentPos, { g_commonScale }, sizeof(g_scoreBuffer), baseRect);
@@ -267,15 +268,6 @@ void Application::Update(const float deltaTime)
 
     UpdateSpriteAnimation(dino, *g_dinoAnimation, g_dinoAnimationTimer, g_dinoAnimationIndex);
 
-    SetBitmapTextVerticalPos(currentScore, g_currentScorePos.Y);
-    SetBitmapTextVerticalPos(highScore, g_highScorePos.Y);
-
-    Uint32ToStr(gfxGetDisplayWidth(), g_highScoreBuffer, sizeof(g_highScoreBuffer));
-    SetBitmapTextString(highScore, g_highScoreBuffer, sizeof(g_highScoreBuffer));
-
-    Uint32ToStr(gfxGetDisplayHeight(), g_scoreBuffer, sizeof(g_scoreBuffer));
-    SetBitmapTextString(currentScore, g_scoreBuffer, sizeof(g_scoreBuffer));
-
     if (g_isRespawning)
     {
         g_respawnTimer += deltaTime;
@@ -287,7 +279,7 @@ void Application::Update(const float deltaTime)
     }
 
     // Touch happens in the right half of the screen, jump
-    if (touchX > (float)gfxGetDisplayWidth() / 2.0f && !g_isDinoDead && !g_isRespawning)
+    if (touchX > g_gameWorkRes.X / 2.0f && !g_isDinoDead && !g_isRespawning)
     {
         if (!g_isJumping)
         {
@@ -339,7 +331,7 @@ void Application::Update(const float deltaTime)
         if (!g_isPlaying && g_isInPauseScreen)
         {
             if (g_isFadingOut) {
-                touchHint.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
+                touchHint.Position = { -g_gameWorkRes.X, 0.0f };
                 g_isFadingOut = false;
             } else {
                 touchHint.Position = g_touchHintPos;
@@ -412,7 +404,7 @@ void Application::Update(const float deltaTime)
             }
         }
 
-        if (g_currentScore % g_scoreToFade == 0)
+        if (g_currentScore > 0 && g_currentScore % g_scoreToFade == 0)
         {
             if (!g_isFadingTime) {
                 g_isNightTime = !g_isNightTime;
@@ -435,6 +427,9 @@ void Application::Update(const float deltaTime)
         for (uint32_t index = 0; index < g_maxCactus; ++index) {
             cactus[index].Position.X -= g_objectsSpeed * g_objectsVelocity * deltaTime;
         }
+
+        // Scroll the pterodactyl
+        pterodactyl.Position.X -= g_objectsSpeed * (g_objectsVelocity + 0.15f) * deltaTime;
     }
 
     // Check ground collision
@@ -446,9 +441,9 @@ void Application::Update(const float deltaTime)
         if (!g_isPlaying && g_isJumping)
         {
             // Hide main menu title's
-            touchHint.Position     = { -(float)gfxGetDisplayWidth(), 0.0f };
-            crexLogo.Position      = { -(float)gfxGetDisplayWidth(), 0.0f };
-            developerInfo.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
+            touchHint.Position     = { -g_gameWorkRes.X, 0.0f };
+            crexLogo.Position      = { -g_gameWorkRes.X, 0.0f };
+            developerInfo.Position = { -g_gameWorkRes.X, 0.0f };
             highIndicator.Position = g_highIndicatorPos;
 
             SetBitmapTextVerticalPos(currentScore, g_currentScorePos.Y);
@@ -483,7 +478,7 @@ void Application::Update(const float deltaTime)
         {
             // Randomly regenerate the Y position of the cloud
             const float cloudsRangeY = (float)GenerateRandomNumRange(g_cloudsMaxUpRange, g_cloudsMaxDownRange);
-            actualCloud->Position = { (float)gfxGetDisplayWidth(), cloudsRangeY };
+            actualCloud->Position = { g_gameWorkRes.X, cloudsRangeY };
         }
 
         UpdateVertexData(clouds[index]);
@@ -500,12 +495,12 @@ void Application::Update(const float deltaTime)
 
             cactus[index].TexRect    = g_cactusRect[cactusRect];
             cactus[index].Size       = { (float)cactus[index].TexRect.Width, (float)cactus[index].TexRect.Height };
-            cactus[index].Position.X = ((float)gfxGetDisplayWidth() + 200.0f) * g_maxCactus;// * offset;
+            cactus[index].Position.X = (g_gameWorkRes.X + 200.0f) * g_maxCactus;// * offset;
 
             SetObjectAboveGround(cactus[index]);
         }
 
-        if (HasAABBCollided(dino, cactus[index], g_dinoCollisionThreshold)) {
+        if (HasAABBCollided(dino, cactus[index], { g_dinoCollisionThreshold })) {
             g_isPlaying = false;
             g_isDinoDead = true;
         }
@@ -514,7 +509,11 @@ void Application::Update(const float deltaTime)
         UpdateVertexData(cactus[index]);
     }
 
-    if (HasAABBCollided(dino, pterodactyl, g_dinoCollisionThreshold)) {
+    if (pterodactyl.Position.X < -(pterodactyl.Size.X * pterodactyl.Scale.X)) {
+        pterodactyl.Position.X = g_gameWorkRes.X * (float)GenerateRandomNumRange(2, 6);
+    }
+
+    if (HasAABBCollided(dino, pterodactyl, { 0.9f, 0.8f }, { 0.5f, 0.9f })) {
         g_isPlaying = false;
         g_isDinoDead = true;
     }
@@ -559,8 +558,8 @@ void Application::Update(const float deltaTime)
     }
 
     // Show game_over and retry_button when dino is ded :P
-    gameOver.Position = g_isDinoDead ? g_gameOverPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f);
-    retry.Position = g_isDinoDead ? g_retryButtonPos : Vec2(-(float)gfxGetDisplayWidth(), 0.0f);
+    gameOver.Position = g_isDinoDead ? g_gameOverPos : Vec2(-g_gameWorkRes.X, 0.0f);
+    retry.Position = g_isDinoDead ? g_retryButtonPos : Vec2(-g_gameWorkRes.X, 0.0f);
 
     // Update object colors
 
@@ -569,6 +568,7 @@ void Application::Update(const float deltaTime)
     gameOver.Color = g_objectsColor;
     retry.Color = g_objectsColor;
     highIndicator.Color = g_objectsColor;
+    pterodactyl.Color = g_objectsColor;
 
     SetBitmapTextVerticalColor(currentScore, g_objectsColor);
     SetBitmapTextVerticalColor(highScore, g_objectsColor);
@@ -628,7 +628,7 @@ void SetupSprites()
         clouds[index].Scale    = { g_commonScale };
         clouds[index].TexRect  = { 166.0f, 0.0f, 92, 29 };
         clouds[index].Size     = { (float)clouds[index].TexRect.Width, (float)clouds[0].TexRect.Height };
-        clouds[index].Position = { (float)gfxGetDisplayWidth() + (index * g_cloudsDistance), maxCloudRangeY };
+        clouds[index].Position = { g_gameWorkRes.X + (index * g_cloudsDistance), maxCloudRangeY };
         clouds[index].Color    = g_objectsColor;
 
         UpdateVertexData(clouds[index]);
@@ -649,7 +649,7 @@ void SetupSprites()
     ground.Scale    = { g_commonScale };
     ground.TexRect  = { 0.0f, 103.0f, 2446 * 2, 26 };
     ground.Size     = { (float)ground.TexRect.Width, (float)ground.TexRect.Height };
-    ground.Position = { 0.0f, (float)gfxGetDisplayHeight() - (ground.Size.Y * ground.Scale.Y) - 50.0f };
+    ground.Position = { 0.0f, g_gameWorkRes.Y - (ground.Size.Y * ground.Scale.Y) - 50.0f };
     ground.Color    = g_objectsColor;
 
     SetObjectAboveGround(dino);
@@ -660,7 +660,7 @@ void SetupSprites()
     crexLogo.Scale    = { g_crexLogoScale, g_crexLogoScale };
     crexLogo.TexRect  = { 1293.0f, 58.0f, 178, 25 };
     crexLogo.Size     = { (float)crexLogo.TexRect.Width, (float)crexLogo.TexRect.Height };
-    crexLogo.Position = { -(float)gfxGetDisplayWidth(), 0.0f};//295.0f, 100.0f };
+    crexLogo.Position = { 295.0f, 100.0f };
     crexLogo.Color    = g_whiteColor;
 
     // Developer Info
@@ -671,8 +671,8 @@ void SetupSprites()
     developerInfo.Size     = { (float)developerInfo.TexRect.Width, (float)developerInfo.TexRect.Height };
     developerInfo.Color    = g_whiteColor;
 
-    const float developerInfoX = (float)gfxGetDisplayWidth() - (developerInfo.Size.X * developerInfo.Scale.X) - 15.0f;
-    const float developerInfoY = (float)gfxGetDisplayHeight() - (developerInfo.Size.Y * developerInfo.Scale.Y) - 15.0f;
+    const float developerInfoX = g_gameWorkRes.X - (developerInfo.Size.X * developerInfo.Scale.X) - 15.0f;
+    const float developerInfoY = g_gameWorkRes.Y - (developerInfo.Size.Y * developerInfo.Scale.Y) - 15.0f;
 
     developerInfo.Position = { developerInfoX, developerInfoY };
 
@@ -696,7 +696,7 @@ void SetupSprites()
         cactus[index].Scale    = { g_commonScale };
         cactus[index].TexRect  = g_cactusRect[cactusRect];
         cactus[index].Size     = { (float)cactus[index].TexRect.Width, (float)cactus[index].TexRect.Height };
-        cactus[index].Position = { ((float)gfxGetDisplayWidth() + 200.0f) * (index + 1), 0.0f };
+        cactus[index].Position = { (g_gameWorkRes.X + 200.0f) * (index + 1), 0.0f };
         cactus[index].Color    = g_objectsColor;
 
         SetObjectAboveGround(cactus[index]);
@@ -709,7 +709,7 @@ void SetupSprites()
     gameOver.Scale    = { g_commonScale };
     gameOver.TexRect  = { 1293.0f, 28.0f, 381, 21 };
     gameOver.Size     = { (float)gameOver.TexRect.Width, (float)gameOver.TexRect.Height };
-    gameOver.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
+    gameOver.Position = { -g_gameWorkRes.X, 0.0f };
     gameOver.Color    = g_objectsColor;
 
     // Retry button
@@ -718,7 +718,7 @@ void SetupSprites()
     retry.Scale    = { g_commonScale };
     retry.TexRect  = { 3.0f, 3.0f, 68, 60 };
     retry.Size     = { (float)retry.TexRect.Width, (float)retry.TexRect.Height };
-    retry.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
+    retry.Position = { -g_gameWorkRes.X, 0.0f };
     retry.Color    = g_objectsColor;
 
     // High Score Indicator
@@ -727,7 +727,7 @@ void SetupSprites()
     highIndicator.Scale    = { g_scoreIndicatorScale };
     highIndicator.TexRect  = { 1494.0f, 2.0f, 38, 21 };
     highIndicator.Size     = { (float)highIndicator.TexRect.Width, (float)highIndicator.TexRect.Height };
-    highIndicator.Position = { g_highIndicatorPos.X, -(float)gfxGetDisplayHeight() };
+    highIndicator.Position = { g_highIndicatorPos.X, -g_gameWorkRes.Y };
     highIndicator.Color    = g_objectsColor;
 
     // High Score Indicator
@@ -736,7 +736,7 @@ void SetupSprites()
     pterodactyl.Scale    = { g_commonScale };
     pterodactyl.TexRect  = { 264.0f, 6.0f, 84, 72 };
     pterodactyl.Size     = { (float)pterodactyl.TexRect.Width, (float)pterodactyl.TexRect.Height };
-    pterodactyl.Position = { -(float)gfxGetDisplayWidth(), 0.0f };
+    pterodactyl.Position = { g_gameWorkRes.X * (float)GenerateRandomNumRange(2, 6), 470.0f };
     pterodactyl.Color    = g_objectsColor;
 
     UpdateVertexData(dino);
@@ -860,12 +860,12 @@ uint32_t GenerateRandomNumRange(const uint32_t min, const uint32_t max)
     return min + (rand() % max);
 }
 
-bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const float lheThreshold)
+bool HasAABBCollided(const BatchedSprite& lhe, const BatchedSprite& rhe, const Vec2 lheRectThreshold, const Vec2 rheRectThreshold)
 {
-    const Vec2 pos1 = lhe.Position * lheThreshold;
+    const Vec2 pos1 = lhe.Position;
     const Vec2 pos2 = rhe.Position;
-    const Vec2 size1 = Vec2(lhe.Size.X * lhe.Scale.X, lhe.Size.Y * lhe.Scale.Y) * lheThreshold;
-    const Vec2 size2 = Vec2(rhe.Size.X * rhe.Scale.X, rhe.Size.Y * rhe.Scale.Y);
+    const Vec2 size1 = Vec2(lhe.Size.X * lhe.Scale.X, lhe.Size.Y * lhe.Scale.Y) * lheRectThreshold;
+    const Vec2 size2 = Vec2(rhe.Size.X * rhe.Scale.X, rhe.Size.Y * rhe.Scale.Y) * rheRectThreshold;
 
     if (pos1.X < pos2.X + size2.X && pos1.X + size1.X > pos2.X &&	// Horizontal check
         pos1.Y < pos2.Y + size2.Y && pos1.Y + size1.Y > pos2.Y)		// Vertical check
@@ -880,8 +880,8 @@ bool CheckTouchAgainstSprite(const BatchedSprite& sprite)
 {
     const TouchScreenId id = TouchScreenId::Touch;
 
-    const float touchX = getTouchScreenX(id) * (float)gfxGetDisplayWidth();
-    const float touchY = getTouchScreenY(id) * (float)gfxGetDisplayHeight();
+    const float touchX = getTouchScreenX(id) * g_gameWorkRes.X;
+    const float touchY = getTouchScreenY(id) * g_gameWorkRes.Y;
 
     // Same as AABB collision, but with touchscreen props
 
@@ -906,8 +906,10 @@ void RestartObjectsPosition()
     for (uint32_t index = 0; index < g_maxCactus; ++index)
     {
         const float offset = 0.1f * GenerateRandomNumRange(7, 11);
-        cactus[index].Position.X = ((float)gfxGetDisplayWidth() + 200.0f) * (index + 1);// * offset;
+        cactus[index].Position.X = (g_gameWorkRes.X + 200.0f) * (index + 1);// * offset;
     }
+
+    pterodactyl.Position.X = g_gameWorkRes.X * (float)GenerateRandomNumRange(2, 6);
 }
 
 void Uint32ToStr(const uint32_t integer, char* buffer, const uint32_t size)
